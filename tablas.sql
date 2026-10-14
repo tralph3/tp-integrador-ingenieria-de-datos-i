@@ -65,18 +65,18 @@ CREATE TABLE stock (
 
 CREATE TABLE proveedores (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_sucursal INT NOT NULL,
        nombre VARCHAR(50) NOT NULL,
        telefono VARCHAR(20) NOT NULL,
        direccion VARCHAR(255) NOT NULL,
-       cuit VARCHAR(20) NOT NULL,
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id)
+       cuit VARCHAR(20) NOT NULL
 );
 
-CREATE TABLE proveedores_autos (
+CREATE TABLE proveedores_entregas (
        id_proveedor INT NOT NULL,
        id_auto INT NOT NULL,
+       id_sucursal INT NOT NULL,
        FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id)
 );
 
