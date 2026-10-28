@@ -50,16 +50,20 @@ CREATE TABLE autos (
 
 CREATE TABLE ventas (
        id INT IDENTITY(1,1) PRIMARY KEY,
+       id_sucursal INT NOT NULL,
        id_cliente INT NOT NULL,
        id_vendedor INT NOT NULL,
        id_auto INT NOT NULL,
-       fecha DATE NOT NULL,
+       fecha DATE NOT NULL DEFAULT GETDATE(),
        precio BIGINT NOT NULL,
        medio_pago VARCHAR(30) NOT NULL,
        meses_service INT DEFAULT 6,
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_cliente) REFERENCES clientes(id),
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id),
+       CONSTRAINT chk_ventas_precio CHECK (precio > 0),
+       CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
        CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito'))
 );
 
