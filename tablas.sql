@@ -44,7 +44,8 @@ CREATE TABLE autos (
        id_marca INT NOT NULL,
        precio BIGINT NOT NULL,
        FOREIGN KEY (id_marca) REFERENCES marcas(id),
-       CONSTRAINT uq_autos_modelo_marca UNIQUE (modelo, id_marca)
+       CONSTRAINT uq_autos_modelo_marca UNIQUE (modelo, id_marca),
+       CONSTRAINT chk_autos_precio CHECK (precio > 0)
 );
 
 CREATE TABLE ventas (
