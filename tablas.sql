@@ -19,9 +19,14 @@ CREATE TABLE empleados (
        nombre_completo VARCHAR(255) NOT NULL,
        dni VARCHAR(20) NOT NULL,
        id_sucursal INT NOT NULL,
-       tipo VARCHAR(9) NOT NULL,
+       tipo VARCHAR(20) NOT NULL,
+       estado VARCHAR(20) NOT NULL,
+       fecha_ingreso DATE NOT NULL,
+       sueldo BIGINT NOT NULL,
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
+       CONSTRAINT chk_empleados_estado CHECK (tipo IN ('activo', 'licencia', 'baja')),
        CONSTRAINT chk_empleados_tipo CHECK (tipo IN ('vendedor', 'limpieza', 'contador', 'gerente', 'marketing')),
+       CONSTRAINT chk_empleados_sueldo CHECK (sueldo > 0),
        CONSTRAINT uq_empleados_dni UNIQUE (dni)
 );
 
