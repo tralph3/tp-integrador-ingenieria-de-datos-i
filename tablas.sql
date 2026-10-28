@@ -6,7 +6,7 @@ CREATE TABLE clientes (
        email VARCHAR(50) NOT NULL,
        telefono VARCHAR(30),
        CONSTRAINT uq_clientes_dni UNIQUE (dni),
-       CONSTRAINT chk_clientes_fecha_nacimiento CHECK (fecha_nacimiento < NOW())
+       CONSTRAINT chk_clientes_fecha_nacimiento CHECK (fecha_nacimiento < GETDATE())
 );
 
 CREATE TABLE sucursales (
@@ -82,13 +82,18 @@ CREATE TABLE proveedores (
        nombre VARCHAR(50) NOT NULL,
        telefono VARCHAR(20) NOT NULL,
        direccion VARCHAR(255) NOT NULL,
-       cuit VARCHAR(20) NOT NULL
+       cuit VARCHAR(20) NOT NULL UNIQUE,
+       CONSTRAINT uq_proveedores_cuit UNIQUE (cuit)
 );
 
 CREATE TABLE proveedores_entregas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       fecha DATE NOT NULL DEFAULT GETDATE(),
+       cantidad INT NOT NULL,
        id_proveedor INT NOT NULL,
        id_auto INT NOT NULL,
        id_sucursal INT NOT NULL,
+       CONSTRAINT chk_proveedores_entregas_cantidad CHECK (cantidad > 0),
        FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id)
@@ -104,6 +109,10 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
+       tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
+       costo BIGINT NOT NULL,
+       CONSTRAINT chk_service_costo CHECK (costo >= 0),
+       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
