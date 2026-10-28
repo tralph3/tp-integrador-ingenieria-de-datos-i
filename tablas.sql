@@ -2,7 +2,11 @@ CREATE TABLE clientes (
        id INT IDENTITY(1,1) PRIMARY KEY,
        nombre_completo VARCHAR(255) NOT NULL,
        dni VARCHAR(20) NOT NULL,
-       CONSTRAINT uq_clientes_dni UNIQUE (dni)
+       fecha_nacimiento DATE NOT NULL,
+       email VARCHAR(50) NOT NULL,
+       telefono VARCHAR(30),
+       CONSTRAINT uq_clientes_dni UNIQUE (dni),
+       CONSTRAINT chk_clientes_fecha_nacimiento CHECK (fecha_nacimiento < NOW())
 );
 
 CREATE TABLE sucursales (
@@ -50,7 +54,7 @@ CREATE TABLE ventas (
        FOREIGN KEY (id_cliente) REFERENCES clientes(id),
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id),
-       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito')),
+       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito'))
 );
 
 CREATE TABLE stock (
