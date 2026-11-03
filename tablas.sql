@@ -159,3 +159,38 @@ CREATE TABLE log_errores (
        numero_error INT NOT NULL,
        mensaje VARCHAR(1000) NOT NULL
 );
+
+CREATE TABLE historial_precios (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       id_auto INT NOT NULL,
+       precio_anterior BIGINT NOT NULL,
+       precio_nuevo BIGINT NOT NULL,
+       fecha DATETIME NOT NULL DEFAULT GETDATE(),
+       usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
+       CONSTRAINT chk_historial_precios_anterior CHECK (precio_anterior > 0),
+       CONSTRAINT chk_historial_precios_nuevo CHECK (precio_nuevo > 0),
+       FOREIGN KEY (id_auto) REFERENCES autos(id)
+);
+
+CREATE TABLE cuotas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       id_venta INT NOT NULL,
+       nro_cuota INT NOT NULL,
+       monto BIGINT NOT NULL,
+       vencimiento DATE NOT NULL,
+       fecha_pago DATE, -- NULL hasta que se paga
+       CONSTRAINT uq_cuotas_id_venta_nro_cuota UNIQUE (id_venta, nro_cuota),
+       CONSTRAINT chk_cuotas_nro_cuota CHECK (nro_cuota > 0),
+       CONSTRAINT chk_cuotas_monto CHECK (monto > 0),
+       FOREIGN KEY (id_venta) REFERENCES ventas(id)
+);
+
+CREATE TABLE comisiones (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       id_venta INT NOT NULL,
+       monto BIGINT NOT NULL,
+       fecha_liquidacion DATE, -- NULL hasta que se liquida
+       CONSTRAINT uq_comisiones_id_venta UNIQUE (id_venta),
+       CONSTRAINT chk_comisiones_monto CHECK (monto >= 0),
+       FOREIGN KEY (id_venta) REFERENCES ventas(id)
+);
