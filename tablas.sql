@@ -157,7 +157,7 @@ CREATE TABLE log_errores (
        usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
        procedimiento VARCHAR(100),
        numero_error INT NOT NULL,
-       mensaje VARCHAR(1000) NOT NULL
+       mensaje VARCHAR(2048) NOT NULL
 );
 
 CREATE TABLE historial_precios (
