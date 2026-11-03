@@ -6,12 +6,16 @@ CREATE TABLE clientes (
        email VARCHAR(50) NOT NULL,
        telefono VARCHAR(30),
        CONSTRAINT uq_clientes_dni UNIQUE (dni),
-       CONSTRAINT chk_clientes_fecha_nacimiento CHECK (fecha_nacimiento < GETDATE())
+       CONSTRAINT uq_clientes_email UNIQUE (email),
+       CONSTRAINT chk_clientes_fecha_nacimiento CHECK (fecha_nacimiento <= GETDATE())
 );
 
 CREATE TABLE sucursales (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       direccion VARCHAR(255) NOT NULL
+       nombre VARCHAR(50) NOT NULL,
+       direccion VARCHAR(255) NOT NULL,
+       telefono VARCHAR(30) NOT NULL,
+       CONSTRAINT uq_sucursales_nombre UNIQUE (nombre)
 );
 
 CREATE TABLE empleados (
@@ -34,7 +38,8 @@ CREATE TABLE marcas (
        id INT IDENTITY(1,1) PRIMARY KEY,
        nombre VARCHAR(255) NOT NULL,
        origen VARCHAR(50),
-       fecha_fundacion DATE
+       fecha_fundacion DATE,
+       CONSTRAINT uq_marcas_nombre UNIQUE (nombre)
 );
 
 CREATE TABLE autos (
@@ -53,18 +58,20 @@ CREATE TABLE ventas (
        id_sucursal INT NOT NULL,
        id_cliente INT NOT NULL,
        id_vendedor INT NOT NULL,
-       id_auto INT NOT NULL,
+       id_vehiculo INT NOT NULL,
        fecha DATE NOT NULL DEFAULT GETDATE(),
        precio BIGINT NOT NULL,
        medio_pago VARCHAR(30) NOT NULL,
-       meses_service INT DEFAULT 6,
+       meses_service INT NOT NULL DEFAULT 6,
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_cliente) REFERENCES clientes(id),
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
+       CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo), -- no se puede vender el mismo auto mas de una vez
        CONSTRAINT chk_ventas_precio CHECK (precio > 0),
        CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
-       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito'))
+       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito')),
+       CONSTRAINT chk_ventas_fecha CHECK (fecha <= GETDATE())
 );
 
 CREATE TABLE proveedores (
@@ -100,8 +107,9 @@ CREATE TABLE service (
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
        tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
-       costo BIGINT NOT NULL,
+       costo BIGINT NOT NULL DEFAULT 0,
        CONSTRAINT chk_service_costo CHECK (costo >= 0),
+       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')),
        CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
