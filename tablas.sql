@@ -38,7 +38,7 @@ CREATE TABLE empleados (
 
 CREATE TABLE marcas (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       nombre VARCHAR(255) NOT NULL,
+       nombre VARCHAR(50) NOT NULL,
        origen VARCHAR(50),
        fecha_fundacion DATE,
        CONSTRAINT uq_marcas_nombre UNIQUE (nombre)
@@ -60,21 +60,17 @@ CREATE TABLE proveedores (
        nombre VARCHAR(50) NOT NULL,
        telefono VARCHAR(20) NOT NULL,
        direccion VARCHAR(255) NOT NULL,
-       cuit VARCHAR(20) NOT NULL UNIQUE,
+       cuit VARCHAR(20) NOT NULL,
        CONSTRAINT uq_proveedores_cuit UNIQUE (cuit)
 );
 
-CREATE TABLE proveedores_entregas (
+CREATE TABLE entregas (
        id INT IDENTITY(1,1) PRIMARY KEY,
        fecha DATE NOT NULL DEFAULT GETDATE(),
-       cantidad INT NOT NULL,
        id_proveedor INT NOT NULL,
-       id_auto INT NOT NULL,
        id_sucursal INT NOT NULL,
-       CONSTRAINT chk_proveedores_entregas_cantidad CHECK (cantidad > 0),
        FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
-       FOREIGN KEY (id_auto) REFERENCES autos(id)
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id)
 );
 
 CREATE TABLE vehiculos (
@@ -85,30 +81,36 @@ CREATE TABLE vehiculos (
        id_sucursal INT NOT NULL,
        id_entrega INT NOT NULL,
        color VARCHAR(20) NOT NULL,
-       estado VARCHAR(20) NOT NULL,
+       estado VARCHAR(20) NOT NULL DEFAULT 'disponible',
        CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
        CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
        FOREIGN KEY (id_auto) REFERENCES autos(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
-       FOREIGN KEY (id_entrega) REFERENCES proveedores_entregas(id)
+       FOREIGN KEY (id_entrega) REFERENCES entregas(id)
 );
 
 CREATE UNIQUE INDEX uq_vehiculos_patente ON vehiculos(patente) WHERE patente IS NOT NULL;
 
+CREATE TABLE plataformas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       nombre VARCHAR(50) NOT NULL,
+       CONSTRAINT uq_plataformas_nombre UNIQUE (nombre)
+);
+
 CREATE TABLE ventas (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_sucursal INT NOT NULL,
        id_cliente INT NOT NULL,
        id_vendedor INT NOT NULL,
        id_vehiculo INT NOT NULL,
+       id_plataforma INT NOT NULL,
        fecha DATE NOT NULL DEFAULT GETDATE(),
        precio BIGINT NOT NULL,
        medio_pago VARCHAR(30) NOT NULL,
        meses_service INT NOT NULL DEFAULT 6,
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_cliente) REFERENCES clientes(id),
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
        FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
+       FOREIGN KEY (id_plataforma) REFERENCES plataformas(id),
        CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo), -- no se puede vender el mismo auto mas de una vez
        CONSTRAINT chk_ventas_precio CHECK (precio > 0),
        CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
@@ -118,7 +120,9 @@ CREATE TABLE ventas (
 
 CREATE TABLE talleres (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       direccion VARCHAR(255) NOT NULL
+       nombre VARCHAR(50) NOT NULL,
+       direccion VARCHAR(255) NOT NULL,
+       CONSTRAINT uq_talleres_nombre UNIQUE (nombre)
 );
 
 CREATE TABLE service (
@@ -147,17 +151,11 @@ CREATE TABLE registro_runa (
        FOREIGN KEY (id_cliente) REFERENCES clientes(id)
 );
 
-CREATE TABLE plataformas (
-       id INT IDENTITY(1,1) PRIMARY KEY,
-       nombre VARCHAR(50) NOT NULL,
-       CONSTRAINT uq_plataformas_nombre UNIQUE (nombre)
-);
-
 CREATE TABLE log_errores (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       fecha DATE NOT NULL DEFAULT GETDATE(),
-       usuario VARCHAR(50) NOT NULL,
-       procedimiento VARCHAR(100) NOT NULL,
+       fecha DATETIME NOT NULL DEFAULT GETDATE(),
+       usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
+       procedimiento VARCHAR(100),
        numero_error INT NOT NULL,
-       mensaje TEXT NOT NULL
+       mensaje VARCHAR(1000) NOT NULL
 );
