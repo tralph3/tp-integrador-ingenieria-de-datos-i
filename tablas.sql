@@ -106,3 +106,47 @@ CREATE TABLE service (
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
+
+CREATE TABLE vehiculos (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       chasis VARCHAR(20) NOT NULL,
+       patente VARCHAR(20), -- se asigna al vender
+       id_auto INT NOT NULL,
+       id_sucursal INT NOT NULL,
+       id_entrega INT NOT NULL,
+       color VARCHAR(20) NOT NULL,
+       estado VARCHAR(20) NOT NULL,
+       CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
+       CONSTRAINT uq_vehiculos_patente UNIQUE (patente),
+       CONSTRAINT chk_vehiculos_estado (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
+       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
+       FOREIGN KEY (id_entrega) REFERENCES proveedores_entregas(id)
+);
+
+CREATE TABLE registro_runa (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       id_vehiculo INT NOT NULL,
+       id_cliente INT NOT NULL,
+       fecha DATE NOT NULL DEFAULT GETDATE(),
+       nro_tramite VARCHAR(20) NOT NULL,
+       CONSTRAINT uq_registro_runa_id_vehiculo UNIQUE (id_vehiculo),
+       CONSTRAINT uq_registro_runa_nro_tramite UNIQUE (nro_tramite),
+       FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
+       FOREIGN KEY (id_cliente) REFERENCES clientes(id)
+);
+
+CREATE TABLE plataformas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       nombre VARCHAR(50) NOT NULL,
+       CONSTRAINT uq_plataformas_nombre UNIQUE (nombre)
+);
+
+CREATE TABLE log_errores (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       fecha DATE NOT NULL DEFAULT GETDATE(),
+       usuario VARCHAR(50) NOT NULL,
+       procedimiento VARCHAR(100) NOT NULL,
+       numero_error INT NOT NULL,
+       mensaje TEXT NOT NULL
+);
