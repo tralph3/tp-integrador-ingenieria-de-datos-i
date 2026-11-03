@@ -13,16 +13,14 @@
 - [ ] Primera forma normal
 - [ ] Segunda forma normal
 - [ ] Tercera forma normal
-- [ ] Cuarta forma normal
-- [ ] Quinta forma normal
 
 ### Tablas
 - [x] Definir tablas
 - [x] Claves Primarias
 - [x] Claves Foraneas
-- [ ] Restricciones de integridad
-- [ ] Restricciones de dominio
-- [ ] Relaciones entre tablas
+- [x] Restricciones de integridad
+- [x] Restricciones de dominio
+- [x] Relaciones entre tablas
 
 ### Consultas
 - [ ] SELECT
