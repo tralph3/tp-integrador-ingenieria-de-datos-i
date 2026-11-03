@@ -53,27 +53,6 @@ CREATE TABLE autos (
        CONSTRAINT chk_autos_precio CHECK (precio > 0)
 );
 
-CREATE TABLE ventas (
-       id INT IDENTITY(1,1) PRIMARY KEY,
-       id_sucursal INT NOT NULL,
-       id_cliente INT NOT NULL,
-       id_vendedor INT NOT NULL,
-       id_vehiculo INT NOT NULL,
-       fecha DATE NOT NULL DEFAULT GETDATE(),
-       precio BIGINT NOT NULL,
-       medio_pago VARCHAR(30) NOT NULL,
-       meses_service INT NOT NULL DEFAULT 6,
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
-       FOREIGN KEY (id_cliente) REFERENCES clientes(id),
-       FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
-       FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
-       CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo), -- no se puede vender el mismo auto mas de una vez
-       CONSTRAINT chk_ventas_precio CHECK (precio > 0),
-       CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
-       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito')),
-       CONSTRAINT chk_ventas_fecha CHECK (fecha <= GETDATE())
-);
-
 CREATE TABLE proveedores (
        id INT IDENTITY(1,1) PRIMARY KEY,
        nombre VARCHAR(50) NOT NULL,
@@ -96,6 +75,44 @@ CREATE TABLE proveedores_entregas (
        FOREIGN KEY (id_auto) REFERENCES autos(id)
 );
 
+CREATE TABLE vehiculos (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       chasis VARCHAR(20) NOT NULL,
+       patente VARCHAR(20), -- se asigna al vender
+       id_auto INT NOT NULL,
+       id_sucursal INT NOT NULL,
+       id_entrega INT NOT NULL,
+       color VARCHAR(20) NOT NULL,
+       estado VARCHAR(20) NOT NULL,
+       CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
+       CONSTRAINT uq_vehiculos_patente UNIQUE (patente),
+       CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
+       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
+       FOREIGN KEY (id_entrega) REFERENCES proveedores_entregas(id)
+);
+
+CREATE TABLE ventas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       id_sucursal INT NOT NULL,
+       id_cliente INT NOT NULL,
+       id_vendedor INT NOT NULL,
+       id_vehiculo INT NOT NULL,
+       fecha DATE NOT NULL DEFAULT GETDATE(),
+       precio BIGINT NOT NULL,
+       medio_pago VARCHAR(30) NOT NULL,
+       meses_service INT NOT NULL DEFAULT 6,
+       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
+       FOREIGN KEY (id_cliente) REFERENCES clientes(id),
+       FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
+       FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
+       CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo), -- no se puede vender el mismo auto mas de una vez
+       CONSTRAINT chk_ventas_precio CHECK (precio > 0),
+       CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
+       CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito')),
+       CONSTRAINT chk_ventas_fecha CHECK (fecha <= GETDATE())
+);
+
 CREATE TABLE talleres (
        id INT IDENTITY(1,1) PRIMARY KEY,
        direccion VARCHAR(255) NOT NULL
@@ -113,23 +130,6 @@ CREATE TABLE service (
        CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
-);
-
-CREATE TABLE vehiculos (
-       id INT IDENTITY(1,1) PRIMARY KEY,
-       chasis VARCHAR(20) NOT NULL,
-       patente VARCHAR(20), -- se asigna al vender
-       id_auto INT NOT NULL,
-       id_sucursal INT NOT NULL,
-       id_entrega INT NOT NULL,
-       color VARCHAR(20) NOT NULL,
-       estado VARCHAR(20) NOT NULL,
-       CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
-       CONSTRAINT uq_vehiculos_patente UNIQUE (patente),
-       CONSTRAINT chk_vehiculos_estado (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
-       FOREIGN KEY (id_entrega) REFERENCES proveedores_entregas(id)
 );
 
 CREATE TABLE registro_runa (
