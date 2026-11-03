@@ -67,16 +67,6 @@ CREATE TABLE ventas (
        CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito'))
 );
 
-CREATE TABLE stock (
-       id_sucursal INT NOT NULL,
-       id_auto INT NOT NULL,
-       cantidad INT NOT NULL DEFAULT 0,
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
-       CONSTRAINT pk_stock PRIMARY KEY (id_sucursal, id_auto),
-       CONSTRAINT chk_stock_cantidad CHECK (cantidad >= 0)
-);
-
 CREATE TABLE proveedores (
        id INT IDENTITY(1,1) PRIMARY KEY,
        nombre VARCHAR(50) NOT NULL,
