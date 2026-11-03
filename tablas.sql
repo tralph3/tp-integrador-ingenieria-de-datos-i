@@ -1,3 +1,5 @@
+SET QUOTED_IDENTIFIER ON;
+
 CREATE TABLE clientes (
        id INT IDENTITY(1,1) PRIMARY KEY,
        nombre_completo VARCHAR(255) NOT NULL,
@@ -85,12 +87,13 @@ CREATE TABLE vehiculos (
        color VARCHAR(20) NOT NULL,
        estado VARCHAR(20) NOT NULL,
        CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
-       CONSTRAINT uq_vehiculos_patente UNIQUE (patente),
        CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
        FOREIGN KEY (id_auto) REFERENCES autos(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_entrega) REFERENCES proveedores_entregas(id)
 );
+
+CREATE UNIQUE INDEX uq_vehiculos_patente ON vehiculos(patente) WHERE patente IS NOT NULL;
 
 CREATE TABLE ventas (
        id INT IDENTITY(1,1) PRIMARY KEY,
