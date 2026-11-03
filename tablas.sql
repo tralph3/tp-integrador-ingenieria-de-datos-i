@@ -30,13 +30,6 @@ CREATE TABLE empleados (
        CONSTRAINT uq_empleados_dni UNIQUE (dni)
 );
 
-CREATE TABLE marcas (
-       id INT IDENTITY(1,1) PRIMARY KEY,
-       nombre VARCHAR(255) NOT NULL,
-       origen VARCHAR(50),
-       fecha_fundacion DATE
-);
-
 CREATE TABLE autos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        modelo VARCHAR(255) NOT NULL,
@@ -50,15 +43,13 @@ CREATE TABLE autos (
 
 CREATE TABLE ventas (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_sucursal INT NOT NULL,
        id_cliente INT NOT NULL,
-       id_vendedor INT NOT NULL,
-       id_auto INT NOT NULL,
+       id_vendedor INT NOT NULL, 
+       id_auto INT NOT NULL, 
        fecha DATE NOT NULL DEFAULT GETDATE(),
        precio BIGINT NOT NULL,
        medio_pago VARCHAR(30) NOT NULL,
        meses_service INT DEFAULT 6,
-       FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_cliente) REFERENCES clientes(id),
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id),
@@ -82,19 +73,27 @@ CREATE TABLE proveedores (
        nombre VARCHAR(50) NOT NULL,
        telefono VARCHAR(20) NOT NULL,
        direccion VARCHAR(255) NOT NULL,
-       cuit VARCHAR(20) NOT NULL UNIQUE,
+       cuit VARCHAR(20) NOT NULL,
        CONSTRAINT uq_proveedores_cuit UNIQUE (cuit)
+);
+
+CREATE TABLE marcas (
+       id INT IDENTITY(1,1) PRIMARY KEY,
+       nombre VARCHAR(255) NOT NULL,
+       origen VARCHAR(50),
+       fecha_fundacion DATE,
+       id_proveedor INT UNIQUE NOT NULL,
+       FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
+       CONSTRAINT chk_marcas_fecha_fundacion CHECK (fecha_fundacion < GETDATE())
 );
 
 CREATE TABLE proveedores_entregas (
        id INT IDENTITY(1,1) PRIMARY KEY,
        fecha DATE NOT NULL DEFAULT GETDATE(),
        cantidad INT NOT NULL,
-       id_proveedor INT NOT NULL,
        id_auto INT NOT NULL,
        id_sucursal INT NOT NULL,
        CONSTRAINT chk_proveedores_entregas_cantidad CHECK (cantidad > 0),
-       FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_auto) REFERENCES autos(id)
 );
