@@ -204,7 +204,7 @@ CREATE TABLE proveedores (
 ```
 
 == Entregas
-Registra las entregas de los proveedores. La tabla vehiculos luego referencia esta tabla, indicando a qué entrega pertenecen.
+Registra las entregas de los proveedores. La tabla #link(<tabla-vehiculos>)[#text(fill: blue)[`vehiculos`]] luego referencia esta tabla, indicando a qué entrega pertenecen.
 
 ```sql
 CREATE TABLE entregas (
@@ -217,7 +217,7 @@ CREATE TABLE entregas (
 );
 ```
 
-== Vehículos
+== Vehículos <tabla-vehiculos>
 Registra los vehículos que la empresa posee. A diferencia de autos, estos no son los modelos, sino vehículos particulares, con una ubicación y patente específicas.
 
 ```sql
@@ -325,7 +325,7 @@ CREATE TABLE registro_runa (
 );
 ```
 
-== Log Errores
+== Log de Errores
 Registra los errores capturados por procedimientos y triggers.
 
 ```sql
@@ -390,13 +390,174 @@ CREATE TABLE comisiones (
 ```
 
 = Diccionario de datos
-#table(
-  columns: (auto, auto, auto, 1fr),
-  stroke: 0.5pt + luma(150),
-  inset: 6pt,
-  table.header[*Tabla*][*Campo*][*Tipo*][*Descripción*],
-  [`clientes`], [`id`], [`INT`], [Identificador del cliente.],
-  [`clientes`], [`dni`], [`VARCHAR(20)`], [Documento, único.],
+#let dic(..filas) = {
+  set text(size: 9pt)
+  table(
+    columns: (auto, auto, auto, 1.3fr, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Campo*][*Tipo*][*Nulo*][*Restricciones*][*Descripción*],
+    ..filas.pos().map(f => (raw(f.at(0)), raw(f.at(1)), f.at(2), f.at(3), emph(f.at(4)))).flatten(),
+  )
+}
+
+== Clientes
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre_completo", "VARCHAR(255)", "No", "—", "Nombre completo del cliente."),
+  ("dni", "VARCHAR(20)", "No", "UNIQUE", "DNI del cliente."),
+  ("fecha_nacimiento", "DATE", "No", "CHECK: <= fecha actual", "Fecha de nacimiento del cliente."),
+  ("email", "VARCHAR(50)", "No", "UNIQUE", "Correo electrónico del cliente."),
+  ("telefono", "VARCHAR(30)", "Sí", "—", "Teléfono del cliente."),
+)
+
+== Sucursales
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre", "VARCHAR(50)", "No", "UNIQUE", "Nombre de la sucursal."),
+  ("direccion", "VARCHAR(255)", "No", "—", "Dirección de la sucursal."),
+  ("telefono", "VARCHAR(30)", "No", "—", "Teléfono de la sucursal."),
+)
+
+== Empleados
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre_completo", "VARCHAR(255)", "No", "—", "Nombre completo del empleado."),
+  ("dni", "VARCHAR(20)", "No", "UNIQUE", "DNI del empleado."),
+  ("id_sucursal", "INT", "No", "FK → sucursales(id)", "Identificador de la sucursal donde el empleado trabaja."),
+  ("tipo", "VARCHAR(20)", "No", "CHECK: vendedor, limpieza, contador, gerente, marketing", "Tipo de empleado (su posición)."),
+  ("estado", "VARCHAR(20)", "No", "CHECK: activo, licencia, baja", "Estado del empleado."),
+  ("fecha_ingreso", "DATE", "No", "—", "Fecha de ingreso del empleado."),
+  ("sueldo", "BIGINT", "No", "CHECK: > 0", "Sueldo mensual del empleado."),
+)
+
+== Marcas
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre", "VARCHAR(50)", "No", "UNIQUE", "Nombre de la marca."),
+  ("origen", "VARCHAR(50)", "Sí", "—", "País de origen de la marca."),
+  ("fecha_fundacion", "DATE", "Sí", "—", "Fecha de fundación de la marca."),
+)
+
+== Autos
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("modelo", "VARCHAR(255)", "No", "UNIQUE junto con id_marca", "Modelo del auto."),
+  ("fecha_lanzamiento", "DATE", "No", "—", "Fecha de lanzamiento del auto."),
+  ("id_marca", "INT", "No", "FK → marcas(id)", "Identificador de la marca del auto."),
+  ("precio", "BIGINT", "No", "CHECK: > 0", "Precio de lista del auto."),
+)
+
+== Proveedores
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre", "VARCHAR(50)", "No", "—", "Nombre del proveedor."),
+  ("telefono", "VARCHAR(20)", "No", "—", "Teléfono del proveedor."),
+  ("direccion", "VARCHAR(255)", "No", "—", "Dirección del proveedor."),
+  ("cuit", "VARCHAR(20)", "No", "UNIQUE", "CUIT del proveedor."),
+)
+
+== Entregas
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("fecha", "DATE", "No", "DEFAULT: fecha actual", "Fecha de la entrega."),
+  ("id_proveedor", "INT", "No", "FK → proveedores(id)", "Identificador del proveedor que realizó la entrega."),
+  ("id_sucursal", "INT", "No", "FK → sucursales(id)", "Identificador de la sucursal donde se realizó la entrega."),
+)
+
+== Vehículos
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("chasis", "VARCHAR(20)", "No", "UNIQUE", "Número de chasis del vehículo."),
+  ("patente", "VARCHAR(20)", "Sí", "Índice único filtrado (solo valores no nulos)", "Patente del vehículo, que se asigna al registrarlo luego de su venta."),
+  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto (modelo) del vehículo."),
+  ("id_sucursal", "INT", "No", "FK → sucursales(id)", "Identificador de la sucursal donde el vehículo reside actualmente."),
+  ("id_entrega", "INT", "No", "FK → entregas(id)", "Identificador de la entrega en la que llegó el vehículo a la sucursal."),
+  ("color", "VARCHAR(20)", "No", "—", "Color del vehículo."),
+  ("estado", "VARCHAR(20)", "No", "DEFAULT: 'disponible'. CHECK: disponible, reservado, vendido, en_service", "Estado del vehículo."),
+)
+
+== Plataformas
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre", "VARCHAR(50)", "No", "UNIQUE", "Nombre de la plataforma."),
+)
+
+== Ventas
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_cliente", "INT", "No", "FK → clientes(id)", "Identificador del cliente que realizó la compra."),
+  ("id_vendedor", "INT", "No", "FK → empleados(id)", "Identificador del vendedor que realizó la venta."),
+  ("id_vehiculo", "INT", "No", "FK → vehiculos(id). UNIQUE", "Identificador del vehículo vendido."),
+  ("id_plataforma", "INT", "No", "FK → plataformas(id)", "Identificador de la plataforma por la cual se concretó la venta."),
+  ("fecha", "DATE", "No", "DEFAULT: fecha actual. CHECK: <= fecha actual", "Fecha de la venta."),
+  ("precio", "BIGINT", "No", "CHECK: > 0", "Precio acordado de la venta."),
+  ("medio_pago", "VARCHAR(30)", "No", "CHECK: efectivo, transferencia, debito, credito", "Medio de pago de la venta."),
+  ("meses_service", "INT", "No", "DEFAULT: 6. CHECK: >= 0", "Cantidad de meses desde la fecha de la venta en los que se puede solicitar un service gratuito al vehículo."),
+)
+
+== Talleres
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("nombre", "VARCHAR(50)", "No", "UNIQUE", "Nombre del taller."),
+  ("direccion", "VARCHAR(255)", "No", "—", "Dirección del taller."),
+)
+
+== Service
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_venta", "INT", "No", "FK → ventas(id)", "Identificador de la venta cuyo vehículo recibe el service."),
+  ("id_taller", "INT", "No", "FK → talleres(id)", "Identificador del taller donde se realiza el service."),
+  ("fecha", "DATE", "No", "—", "Fecha del service."),
+  ("tipo", "VARCHAR(20)", "No", "DEFAULT: 'pago'. CHECK: pago, gratuito", "Tipo de service."),
+  ("costo", "BIGINT", "No", "DEFAULT: 0. CHECK: >= 0; gratuito exige costo = 0 y pago exige costo > 0", "Costo del service."),
+)
+
+== Registro RUNA
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_vehiculo", "INT", "No", "FK → vehiculos(id). UNIQUE", "Identificador del vehículo registrado."),
+  ("id_cliente", "INT", "No", "FK → clientes(id)", "Identificador del cliente que compró el vehículo."),
+  ("fecha", "DATE", "No", "DEFAULT: fecha actual", "Fecha en la que se registró el vehículo."),
+  ("nro_tramite", "VARCHAR(20)", "No", "UNIQUE", "Número de trámite del registro."),
+)
+
+== Log de Errores
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("fecha", "DATETIME", "No", "DEFAULT: fecha y hora actual", "Fecha y hora en que se registró el error."),
+  ("usuario", "VARCHAR(128)", "No", "DEFAULT: SUSER_SNAME()", "Usuario que ejecutó la operación que produjo el error."),
+  ("procedimiento", "VARCHAR(100)", "Sí", "—", "Procedimiento donde se produjo el error."),
+  ("numero_error", "INT", "No", "—", "Número del error."),
+  ("mensaje", "VARCHAR(2048)", "No", "—", "Mensaje descriptivo del error."),
+)
+
+== Historial de Precios
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto cuyo precio de lista se actualizó."),
+  ("precio_anterior", "BIGINT", "No", "CHECK: > 0", "Precio previo a la modificación."),
+  ("precio_nuevo", "BIGINT", "No", "CHECK: > 0", "Precio luego de la modificación."),
+  ("fecha", "DATETIME", "No", "DEFAULT: fecha y hora actual", "Fecha de la modificación."),
+  ("usuario", "VARCHAR(128)", "No", "DEFAULT: SUSER_SNAME()", "Usuario que realizó la modificación."),
+)
+
+== Cuotas
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_venta", "INT", "No", "FK → ventas(id). UNIQUE junto con nro_cuota", "Identificador de la venta que será pagada en cuotas."),
+  ("nro_cuota", "INT", "No", "CHECK: > 0", "Número de cuota de la venta."),
+  ("monto", "BIGINT", "No", "CHECK: > 0", "Monto de la cuota."),
+  ("vencimiento", "DATE", "No", "—", "Fecha de vencimiento de la cuota."),
+  ("fecha_pago", "DATE", "Sí", "—", "Fecha de pago de la cuota."),
+)
+
+== Comisiones
+#dic(
+  ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
+  ("id_venta", "INT", "No", "FK → ventas(id). UNIQUE", "Identificador de la venta."),
+  ("monto", "BIGINT", "No", "CHECK: >= 0", "Monto de la comisión."),
+  ("fecha_liquidacion", "DATE", "Sí", "—", "Fecha en que se efectúa la liquidación de la comisión."),
 )
 
 = Consultas SQL
