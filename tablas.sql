@@ -130,11 +130,11 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
-       tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
+       tipo VARCHAR(20) NOT NULL DEFAULT 'pago', --reemplazarlo con una vista o con: tipo as (CASE WHEN costo = 0 THEN 'gratuito' ELSE 'pago' END) para que no se pueda mentir con el tipo y deje de ser redundante.
        costo BIGINT NOT NULL DEFAULT 0,
-       CONSTRAINT chk_service_costo CHECK (costo >= 0),
-       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')),
-       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
+       CONSTRAINT chk_service_costo CHECK (costo >= 0), -- este queda
+       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')), -- Habría que borrar esta línea.
+       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')), -- este hay que sacarlo.
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );

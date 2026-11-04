@@ -1,0 +1,84 @@
+Cliente:
+- Claves candidatas: id, dni, email.
+- Dependencias funcionales: id -> nombre_completo, dni, fecha nacimiento, email, telefono.
+                            dni -> id, nombre_completo, fecha_nacimiento, email, telefono.
+                            email -> id, nombre_completo, dni, fecha_nacimiento, telefono.
+
+Sucursales:
+- Claves candidatas: id, nombre.
+- Dependencias funcionales: id -> nombre, direccion, telefono.
+                            nombre -> id, dirección, telefono.
+
+Empleados:
+- Claves candidatas: id, dni.
+- Dependencias funcionales: id -> nombre_completo, dni, id_sucursal, tipo, estado, fecha_ingreso, sueldo.
+                            dni -> id, nombre_completo, id_sucursal, tipo, estado, fecha_ingreso, sueldo.
+
+Marcas: 
+- Claves candidatas: id, nombre.
+- Dependencias funcionales: id -> nombre, origen, fecha_fundacion.
+                            nombre -> id, origen, fecha_fundacion.
+
+Autos:
+- Claves candidatas: id, (modelo, id_marca)
+- Dependencias funcionales: id -> modelo, fecha_lanzamiento, id_marca, precio.
+                            (modelo, id_marca) -> id, fecha_lanzamiento, precio.
+
+Proveedores: 
+- Claves candidatas: id, cuit.
+- Dependencias funcionales: id -> nombre, telefono, direccion, cuit.
+                            cuit -> id, nombre, telefono, dirección.
+
+Entregas:
+- CLaves candidatas: id
+- Dependencias funcionales: id -> fecha, id_proveedor, id_sucursal.
+
+Vehiculos:
+- Claves candidatas: id, chasis, patente.
+- Dependencias funcionales: id -> chasis, patente, id_auto, id_sucursal, id_entrega, color, estado.
+                            chasis -> id, patente, id_auto, id_sucursal, id_entrega, color, estado.
+                            patente -> id, chasis, id_auto, id_sucursal, id_entrega, color, estado.
+
+Plataformas:
+- Claves candidatas: id, nombre.
+- Dependencias funcionales: id -> nombre.
+                            nombre -> id.
+
+Ventas:
+- Claves candidatas: id, id_vehiculo.
+- Dependencias funcionales: id -> id_cliente, id_vendedor, id_vehiculo, id_plataforma, fecha, precio, medio_pago, meses_service.
+                            id_vehiculo -> id, id_cliente, id_vendedor, id_plataforma, fecha, precio, medio_pago, meses_service.
+
+Talleres:
+- Claves candidatas: id, nombre.
+- Dependencias funcionales: id -> nombre, direccion.
+                            nombre -> id, direccion.
+
+Service:
+- Claves candidatas: id
+- Dependencias funcionales: id -> id_venta, id_taller, fecha, tipo, costo.
+                            costo -> tipo -- hay que sacarla, ahora pusheo los cambios
+
+Registro_runa:
+- Claves candidatas: id, id_vehiculo, nro_tramite
+- Dependencias funcionales: id -> id_vehiculo, id_cliente, fecha, nro_tramite.
+                            id_vehiculo -> id, id_cliente, fecha, nro_tramite.
+                            nro_tramite -> id, id_vehiculo, id_cliente, fecha.
+
+Log_errores:
+- Claves candidatas: id.
+- Dependencias funcionales: id -> fecha, usuario, procedimiento, numero_error, mensaje.
+
+Historial_precios: 
+- Claves candidatas: id.
+- Dependencias funcionales: id -> id_auto, precio_anterior, precio_nuevo, fehca, usuario.
+
+Cuotas:
+- Claves candidatas: id, (id_venta, nro_cuota).
+- Dependencias funcionales: id -> id:venta, nro_cuota, monto, vencimiento, fecha_pago.
+                            (id_venta, nro_cuota) -> id, monto, vencimiento, fecha_pago.
+
+Comisiones:
+- Claves candidatas: id, id_venta.
+- Dependencias funcionales: id -> id_venta, monto, fecha_liquidacion.
+                            id_venta -> id, monto, fecha_liquidacion
