@@ -19,7 +19,7 @@ Marcas:
 - Dependencias funcionales: id -> nombre, origen, fecha_fundacion.
                             nombre -> id, origen, fecha_fundacion.
 
-Autos:
+Modelos:
 - Claves candidatas: id, (modelo, id_marca)
 - Dependencias funcionales: id -> modelo, fecha_lanzamiento, id_marca, precio.
                             (modelo, id_marca) -> id, fecha_lanzamiento, precio.
