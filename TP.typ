@@ -171,19 +171,19 @@ CREATE TABLE marcas (
 );
 ```
 
-== Autos
+== Modelos
 Almacena los distintos modelos de autos disponibles junto con su precio de lista.
 
 ```sql
-CREATE TABLE autos (
+CREATE TABLE modelos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        modelo VARCHAR(255) NOT NULL,
        fecha_lanzamiento DATE NOT NULL,
        id_marca INT NOT NULL,
        precio BIGINT NOT NULL,
        FOREIGN KEY (id_marca) REFERENCES marcas(id),
-       CONSTRAINT uq_autos_modelo_marca UNIQUE (modelo, id_marca),
-       CONSTRAINT chk_autos_precio CHECK (precio > 0)
+       CONSTRAINT uq_modelos_modelo_marca UNIQUE (modelo, id_marca),
+       CONSTRAINT chk_modelos_precio CHECK (precio > 0)
 );
 ```
 
@@ -216,21 +216,21 @@ CREATE TABLE entregas (
 ```
 
 == Vehículos <tabla-vehiculos>
-Registra los vehículos que la empresa posee. A diferencia de autos, estos no son los modelos, sino vehículos particulares, con una ubicación y patente específicas.
+Registra los vehículos que la empresa posee. A diferencia de `modelos`, estos no son modelos genéricos, sino vehículos particulares, con una ubicación y patente específicas.
 
 ```sql
 CREATE TABLE vehiculos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        chasis VARCHAR(20) NOT NULL,
        patente VARCHAR(20), -- se asigna al vender
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        id_sucursal INT NOT NULL,
        id_entrega INT NOT NULL,
        color VARCHAR(20) NOT NULL,
        estado VARCHAR(20) NOT NULL DEFAULT 'disponible',
        CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
        CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_entrega) REFERENCES entregas(id)
 );
@@ -333,19 +333,19 @@ CREATE TABLE log_errores (
 ```
 
 == Historial de Precios
-Registra los cambios en los precios de lista de los autos.
+Registra los cambios en los precios de lista de los modelos.
 
 ```sql
 CREATE TABLE historial_precios (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        precio_anterior BIGINT NOT NULL,
        precio_nuevo BIGINT NOT NULL,
        fecha DATETIME NOT NULL DEFAULT GETDATE(),
        usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
        CONSTRAINT chk_historial_precios_anterior CHECK (precio_anterior > 0),
        CONSTRAINT chk_historial_precios_nuevo CHECK (precio_nuevo > 0),
-       FOREIGN KEY (id_auto) REFERENCES autos(id)
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id)
 );
 ```
 
@@ -432,7 +432,7 @@ CREATE TABLE comisiones (
   ("fecha_fundacion", "DATE", "Sí", "—", "Fecha de fundación de la marca."),
 )
 
-== Autos
+== Modelos
 #dic(
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
   ("modelo", "VARCHAR(255)", "No", "UNIQUE junto con id_marca", "Modelo del auto."),
@@ -463,7 +463,7 @@ CREATE TABLE comisiones (
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
   ("chasis", "VARCHAR(20)", "No", "UNIQUE", "Número de chasis del vehículo."),
   ("patente", "VARCHAR(20)", "Sí", "Índice único filtrado (solo valores no nulos)", "Patente del vehículo, que se asigna al registrarlo luego de su venta."),
-  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto (modelo) del vehículo."),
+  ("id_modelo", "INT", "No", "FK → modelos(id)", "Identificador del modelo del vehículo."),
   ("id_sucursal", "INT", "No", "FK → sucursales(id)", "Identificador de la sucursal donde el vehículo reside actualmente."),
   ("id_entrega", "INT", "No", "FK → entregas(id)", "Identificador de la entrega en la que llegó el vehículo a la sucursal."),
   ("color", "VARCHAR(20)", "No", "—", "Color del vehículo."),
@@ -526,7 +526,7 @@ CREATE TABLE comisiones (
 == Historial de Precios
 #dic(
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
-  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto cuyo precio de lista se actualizó."),
+  ("id_modelo", "INT", "No", "FK → modelos(id)", "Identificador del modelo cuyo precio de lista se actualizó."),
   ("precio_anterior", "BIGINT", "No", "CHECK: > 0", "Precio previo a la modificación."),
   ("precio_nuevo", "BIGINT", "No", "CHECK: > 0", "Precio luego de la modificación."),
   ("fecha", "DATETIME", "No", "DEFAULT: fecha y hora actual", "Fecha de la modificación."),

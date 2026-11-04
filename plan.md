@@ -10,7 +10,7 @@
 
 
 ### Actores involucrados
-  Empleados, clientes, sucursales, talleres, proveedores, autos.
+  Empleados, clientes, sucursales, talleres, proveedores, modelos.
 
 
 ### Informacion que se necesita almacenar
@@ -69,7 +69,7 @@ Marcas
 - origen
 - fecha_fundacion
 
-Autos
+Modelos
 - id
 - modelo
 - fecha_lanzamiento
@@ -80,7 +80,7 @@ Ventas
 - id
 - id_cliente
 - id_vendedor
-- id_auto
+- id_modelo
 - fecha
 - precio
 - medio_pago
@@ -88,7 +88,7 @@ Ventas
 
 Stock
 - id_sucursal
-- id_auto
+- id_modelo
 - cantidad
 
 Proveedores
@@ -100,7 +100,7 @@ Proveedores
 
 Proveedores_entregas
 - id_proveedor
-- id_auto
+- id_modelo
 - id_sucursal
 
 Talleres
