@@ -44,27 +44,25 @@
     #v(1cm)
     *Grupo:* Nº 14
 
+    #v(2cm)
+    *Integrantes*
+
+    #table(
+        columns: (1fr, 1.5fr, auto),
+        align: (left, center, left),
+        stroke: 0pt,
+        inset: 7pt,
+        table.header[*Nombre y apellido*][*Legajo*][*Rama de Git*],
+        [Tomás Ralph], [1248335], [`ralph`],
+        [Augusto Lecour], [1216511], [`lecour`],
+    )
+
+    #v(1em)
+    *Repositorio:* `https://github.com/tralph3/tp-integrador-ingenieria-de-datos-i`
+
     #v(1fr)
     Fecha de entrega: 5 de noviembre de 2026
   ]
-]
-
-// ------------------------------------------------------------- Integrantes
-#page(numbering: none)[
-  #heading(numbering: none)[Integrantes]
-
-  #table(
-    columns: (1fr, auto, 1.5fr),
-    align: (left, center, left),
-    stroke: 0.5pt + luma(150),
-    inset: 7pt,
-    table.header[*Nombre y apellido*][*Legajo*][*Rama de Git*],
-    [Tomás Ralph], [1248335], [`ralph`],
-    [Augusto Lecour], [1216511], [`lecour`],
-  )
-
-  #v(1em)
-  *Repositorio:* `https://github.com/tralph3/tp-integrador-ingenieria-de-datos-i`
 ]
 
 // ------------------------------------------------------------------ Índice
