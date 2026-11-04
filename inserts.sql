@@ -28,8 +28,8 @@ INSERT INTO marcas (nombre, origen, fecha_fundacion) VALUES
 ('Toyota', 'Japon',          '1937-08-28');
 
 
--- autos 
-INSERT INTO autos (modelo, fecha_lanzamiento, id_marca, precio) VALUES
+-- modelos
+INSERT INTO modelos (modelo, fecha_lanzamiento, id_marca, precio) VALUES
 ('Frontier', '2023-03-01', 1, 45000000),
 ('Maverick', '2022-05-10', 2, 42000000),
 ('Corolla',  '2023-01-15', 3, 38000000);
@@ -50,7 +50,7 @@ INSERT INTO entregas (fecha, id_proveedor, id_sucursal) VALUES
 
 
 -- vehiculos - los tres están vendidos porque cada uno se usa en una venta más abajo.
-INSERT INTO vehiculos (chasis, patente, id_auto, id_sucursal, id_entrega, color, estado) VALUES
+INSERT INTO vehiculos (chasis, patente, id_modelo, id_sucursal, id_entrega, color, estado) VALUES
 ('9BFZZZ54ZPB000001', 'AG123AB', 1, 1, 1, 'Gris',   'vendido'),
 ('9BFZZZ54ZPB000002', 'AG456CD', 2, 2, 2, 'Blanco', 'vendido'),
 ('9BFZZZ54ZPB000003', 'AG789EF', 3, 3, 3, 'Negro',  'vendido');
@@ -78,10 +78,10 @@ INSERT INTO talleres (nombre, direccion) VALUES
 
 
 -- service Gratuito exige costo 0 y pago exige costo mayor a 0 (chk_service_costo_gratuito).
-INSERT INTO service (id_venta, id_taller, fecha, tipo, costo) VALUES
-(1, 1, '2025-08-10', 'gratuito',      0),
-(2, 2, '2025-09-15', 'pago',      95000),
-(3, 3, '2025-10-01', 'pago',     120000);
+INSERT INTO service (id_venta, id_taller, fecha) VALUES
+(1, 1, '2025-08-10'),
+(2, 2, '2025-09-15'),
+(3, 3, '2025-10-01');
 
 
 -- registro_runa -> El cliente debe coincidir con el de la venta de ese vehiculo.
@@ -91,15 +91,14 @@ INSERT INTO registro_runa (id_vehiculo, id_cliente, fecha, nro_tramite) VALUES
 (3, 3, '2025-04-12', 'RUNA-2025-0003');
 
 
--- log_errores 
+-- log_errores
 INSERT INTO log_errores (fecha, procedimiento, numero_error, mensaje) VALUES
 ('2025-05-02 10:15:00', 'sp_registrar_venta',    2627, 'Violacion de restriccion UNIQUE: el vehiculo ya fue vendido'),
-('2025-06-11 16:40:00', 'sp_actualizar_precio',   547, 'Conflicto con la restriccion FOREIGN KEY: el auto no existe'),
-('2025-07-23 09:05:00', 'sp_registrar_service',   547, 'Conflicto con la restriccion CHECK chk_service_costo_gratuito');
+('2025-06-11 16:40:00', 'sp_actualizar_precio',   547, 'Conflicto con la restriccion FOREIGN KEY: el auto no existe');
 
 
 -- historial_precio
-INSERT INTO historial_precios (id_auto, precio_anterior, precio_nuevo, fecha) VALUES
+INSERT INTO historial_precios (id_modelo, precio_anterior, precio_nuevo, fecha) VALUES
 (1, 43000000, 45000000, '2024-12-01 09:00:00'),
 (2, 40000000, 42000000, '2024-12-01 09:05:00'),
 (3, 36000000, 38000000, '2024-12-01 09:10:00');

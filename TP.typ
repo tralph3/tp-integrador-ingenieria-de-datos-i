@@ -101,10 +101,137 @@ _Placeholder._
 )
 
 = Proceso de normalización
+Una dependencia funcional `A → B` indica que, conociendo el valor de `A`, hay un único valor de `B` posible. Una clave candidata es un conjunto mínimo de atributos que determina a todos los demás de la tabla. De todas las claves candidatas se elige una como clave primaria, y las restantes se declaran con `UNIQUE`.
+
 == Dependencias funcionales y claves candidatas
-_Placeholder._
+Para cada tabla listamos las claves candidatas y las dependencias. Las claves salen de los `PRIMARY KEY` y `UNIQUE` del esquema. En ninguna tabla hay una dependencia que parta de una columna que no sea clave.
+
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Tabla*][*Claves candidatas*][*Dependencias funcionales*],
+    [`clientes`], [`id`, `dni`, `email`],
+      [`id → nombre_completo, dni, fecha_nacimiento, email, telefono` \ `dni → id` \ `email → id`],
+    [`sucursales`], [`id`, `nombre`],
+      [`id → nombre, direccion, telefono` \ `nombre → id`],
+    [`empleados`], [`id`, `dni`],
+      [`id → nombre_completo, dni, id_sucursal, tipo, estado, fecha_ingreso, sueldo` \ `dni → id`],
+    [`marcas`], [`id`, `nombre`],
+      [`id → nombre, origen, fecha_fundacion` \ `nombre → id`],
+    [`modelos`], [`id`, `(modelo, id_marca)`],
+      [`id → modelo, fecha_lanzamiento, id_marca, precio` \ `(modelo, id_marca) → id`],
+    [`proveedores`], [`id`, `cuit`],
+      [`id → nombre, telefono, direccion, cuit` \ `cuit → id`],
+    [`entregas`], [`id`],
+      [`id → fecha, id_proveedor, id_sucursal`],
+    [`vehiculos`], [`id`, `chasis`, `patente`],
+      [`id → chasis, patente, id_modelo, id_sucursal, id_entrega, color, estado` \ `chasis → id` \ `patente → id`],
+    [`plataformas`], [`id`, `nombre`],
+      [`id → nombre` \ `nombre → id`],
+    [`ventas`], [`id`, `id_vehiculo`],
+      [`id → id_cliente, id_vendedor, id_vehiculo, id_plataforma, fecha, precio, medio_pago, meses_service` \ `id_vehiculo → id`],
+    [`talleres`], [`id`, `nombre`],
+      [`id → nombre, direccion` \ `nombre → id`],
+    [`service`], [`id`],
+      [`id → id_venta, id_taller, fecha`],
+    [`registro_runa`], [`id`, `id_vehiculo`, `nro_tramite`],
+      [`id → id_vehiculo, id_cliente, fecha, nro_tramite` \ `id_vehiculo → id` \ `nro_tramite → id`],
+    [`log_errores`], [`id`],
+      [`id → fecha, usuario, procedimiento, numero_error, mensaje`],
+    [`historial_precios`], [`id`],
+      [`id → id_modelo, precio_anterior, precio_nuevo, fecha, usuario`],
+    [`cuotas`], [`id`, `(id_venta, nro_cuota)`],
+      [`id → id_venta, nro_cuota, monto, vencimiento, fecha_pago` \ `(id_venta, nro_cuota) → id`],
+    [`comisiones`], [`id`, `id_venta`],
+      [`id → id_venta, monto, fecha_liquidacion` \ `id_venta → id`],
+  )
+}
+
+La patente de `vehiculos` solo es clave candidata cuando está cargada, porque puede ser nula (se controla con un índice único filtrado).
+
+Hay además dependencias que cruzan tablas, y por ellas separamos: `id_vehiculo → id_modelo → id_marca → origen`, `id_empleado → id_sucursal → direccion` e `id_venta → id_cliente → dni`.
+
 == Formas normales (1FN a 3FN)
-_Placeholder._
+Para mostrar el proceso arrancamos de una sola relación sin normalizar, que sería como hoy anota la concesionaria las ventas (libreta y WhatsApp): todo junto en una fila.
+
+```
+VENTA(id_venta, fecha, cliente_dni, cliente_nombre, cliente_email,
+      vendedor_dni, vendedor_nombre, vendedor_tipo,
+      sucursal_nombre, sucursal_direccion,
+      chasis, patente, color, modelo, marca, marca_origen, precio_lista,
+      precio_venta, medio_pago, plataforma,
+      {cuotas: nro_cuota, monto, vencimiento, fecha_pago},
+      {services: fecha, taller, taller_direccion})
+```
+
+=== Primera forma normal (1FN)
+Una relación está en 1FN si todos los atributos son atómicos y no hay grupos repetidos. Acá una venta puede tener varias cuotas y varios services, y todos están metidos dentro de la misma fila, así que no cumple.
+
+Lo resolvemos sacando cada grupo repetido a su propia relación, que apunta a la venta. De ahí salen `cuotas` y `service`:
+
+```
+VENTA(id_venta, fecha, cliente_dni, ..., plataforma)
+CUOTA(id_venta, nro_cuota, monto, vencimiento, fecha_pago)
+SERVICE(id_service, id_venta, fecha, taller, taller_direccion)
+```
+
+=== Segunda forma normal (2FN)
+Una relación está en 2FN si cumple 1FN y ninguna columna no clave depende de solo una parte de una clave compuesta.
+
+- `CUOTA` tiene clave compuesta `(id_venta, nro_cuota)`. `monto`, `vencimiento` y `fecha_pago` dependen de la clave entera, porque cada cuota de cada venta tiene sus propios valores. El nombre del cliente dependería solo de `id_venta`, o sea una dependencia parcial, así que no se guarda acá y se llega a él desde la venta.
+- En `modelos` la clave candidata `(modelo, id_marca)` determina `fecha_lanzamiento` y `precio`, y los dos dependen de la clave completa: el precio es de ese modelo de esa marca.
+- Las demás tablas tienen clave primaria simple (`id`), así que no puede haber dependencias parciales.
+
+=== Tercera forma normal (3FN)
+Una relación está en 3FN si cumple 2FN y ninguna columna no clave depende de otra columna que tampoco es clave (dependencia transitiva). De acá salen casi todas las separaciones de tablas:
+
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (1.4fr, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Dependencia transitiva detectada*][*Solución*],
+    [`id_venta → cliente_dni → cliente_nombre, cliente_email`], [Tabla `clientes`.],
+    [`id_venta → vendedor_dni → vendedor_nombre, vendedor_tipo`], [Tabla `empleados`.],
+    [`vendedor_dni → sucursal_nombre → sucursal_direccion`], [Tabla `sucursales`, referenciada desde `empleados`.],
+    [`id_venta → chasis → patente, color, modelo`], [Tabla `vehiculos`, que representa la unidad física.],
+    [`chasis → modelo → precio_lista`], [Tabla `modelos`, que representa el modelo.],
+    [`modelo → marca → marca_origen`], [Tabla `marcas`.],
+    [`id_venta → plataforma`], [Tabla `plataformas`, para evitar repetir y escribir mal el nombre del canal.],
+    [`id_service → taller → taller_direccion`], [Tabla `talleres`.],
+  )
+}
+
+Para evitar más redundancia tomamos estas decisiones:
+
+- No hay tabla `stock`. La cantidad de autos disponibles por sucursal y modelo se calcula contando los vehículos en estado `disponible`. Guardada aparte tendría que mantenerse sincronizada con `vehiculos` y podrían contradecirse.
+- `ventas` no tiene `id_sucursal`. La sucursal ya la determina el vehículo vendido (`id_vehiculo → id_sucursal`), así que en la venta sería una dependencia transitiva.
+- `comisiones` no tiene `id_vendedor`. El vendedor se obtiene desde la venta (`id_venta → id_vendedor`).
+- `entregas` es solo la cabecera. La cantidad entregada se saca contando los vehículos que apuntan a ella con `id_entrega`.
+- `ventas.precio` y `modelos.precio` no son el mismo dato. El de `ventas` es lo que se acordó en esa venta y no cambia si después se actualiza el precio de lista.
+
+Después de estas separaciones, lo único que determina a otras columnas en cada tabla son las claves candidatas (ver la tabla de arriba). Por eso el modelo está en 3FN y también en BCNF.
+
+=== Las dos sucursales de `vehiculos`
+`vehiculos` tiene una columna `id_sucursal` y `entregas` otra, pero cada una guarda algo distinto. La de `entregas` es el destino: la sucursal a la que el proveedor llevó la mercadería, y no cambia. La de `vehiculos` es la ubicación actual del auto, que puede cambiar si lo movemos a otra sucursal.
+
+Por eso `id_entrega → id_sucursal` no se cumple en `vehiculos`. Dos autos de la misma entrega pueden estar hoy en sucursales distintas, así que no hay dependencia transitiva y la tabla sigue en 3FN. El stock por sucursal se calcula con la ubicación actual, es decir, con `vehiculos.id_sucursal`.
+
+=== Anomalías evitadas
+Separar en tablas evita las tres anomalías típicas.
+
+- Inserción: en la relación inicial no se podría cargar una marca, un modelo, un proveedor o un cliente sin que haya una venta que lo incluya. Con las tablas separadas se cargan por su cuenta.
+- Modificación: si el origen de una marca, la dirección de una sucursal o el teléfono de un cliente estuvieran repetidos en cada venta, habría que cambiarlos en muchas filas, y si se olvida una quedan datos contradictorios. Ahora cada dato está en un solo lugar.
+- Eliminación: si los datos del cliente estuvieran dentro de la venta, borrar su única venta borraría también al cliente. Con `clientes` aparte eso no pasa.
+
+=== Formas normales superiores
+Cada tabla representa una sola entidad o relación y no mezcla datos multivaluados independientes, así que no hay dependencias multivaluadas no triviales y se cumple 4FN. Tampoco hay dependencias de reunión que obliguen a descomponer más, así que se cumple 5FN.
 
 = Modelo de tablas
 == Clientes
@@ -171,19 +298,19 @@ CREATE TABLE marcas (
 );
 ```
 
-== Autos
+== Modelos
 Almacena los distintos modelos de autos disponibles junto con su precio de lista.
 
 ```sql
-CREATE TABLE autos (
+CREATE TABLE modelos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        modelo VARCHAR(255) NOT NULL,
        fecha_lanzamiento DATE NOT NULL,
        id_marca INT NOT NULL,
        precio BIGINT NOT NULL,
        FOREIGN KEY (id_marca) REFERENCES marcas(id),
-       CONSTRAINT uq_autos_modelo_marca UNIQUE (modelo, id_marca),
-       CONSTRAINT chk_autos_precio CHECK (precio > 0)
+       CONSTRAINT uq_modelos_modelo_marca UNIQUE (modelo, id_marca),
+       CONSTRAINT chk_modelos_precio CHECK (precio > 0)
 );
 ```
 
@@ -216,21 +343,21 @@ CREATE TABLE entregas (
 ```
 
 == Vehículos <tabla-vehiculos>
-Registra los vehículos que la empresa posee. A diferencia de autos, estos no son los modelos, sino vehículos particulares, con una ubicación y patente específicas.
+Registra los vehículos que la empresa posee. A diferencia de `modelos`, estos no son modelos genéricos, sino vehículos particulares, con una ubicación y patente específicas.
 
 ```sql
 CREATE TABLE vehiculos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        chasis VARCHAR(20) NOT NULL,
        patente VARCHAR(20), -- se asigna al vender
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        id_sucursal INT NOT NULL,
        id_entrega INT NOT NULL,
        color VARCHAR(20) NOT NULL,
        estado VARCHAR(20) NOT NULL DEFAULT 'disponible',
        CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
        CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_entrega) REFERENCES entregas(id)
 );
@@ -296,11 +423,6 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
-       tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
-       costo BIGINT NOT NULL DEFAULT 0,
-       CONSTRAINT chk_service_costo CHECK (costo >= 0),
-       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')),
-       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
@@ -338,19 +460,19 @@ CREATE TABLE log_errores (
 ```
 
 == Historial de Precios
-Registra los cambios en los precios de lista de los autos.
+Registra los cambios en los precios de lista de los modelos.
 
 ```sql
 CREATE TABLE historial_precios (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        precio_anterior BIGINT NOT NULL,
        precio_nuevo BIGINT NOT NULL,
        fecha DATETIME NOT NULL DEFAULT GETDATE(),
        usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
        CONSTRAINT chk_historial_precios_anterior CHECK (precio_anterior > 0),
        CONSTRAINT chk_historial_precios_nuevo CHECK (precio_nuevo > 0),
-       FOREIGN KEY (id_auto) REFERENCES autos(id)
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id)
 );
 ```
 
@@ -437,7 +559,7 @@ CREATE TABLE comisiones (
   ("fecha_fundacion", "DATE", "Sí", "—", "Fecha de fundación de la marca."),
 )
 
-== Autos
+== Modelos
 #dic(
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
   ("modelo", "VARCHAR(255)", "No", "UNIQUE junto con id_marca", "Modelo del auto."),
@@ -468,7 +590,7 @@ CREATE TABLE comisiones (
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
   ("chasis", "VARCHAR(20)", "No", "UNIQUE", "Número de chasis del vehículo."),
   ("patente", "VARCHAR(20)", "Sí", "Índice único filtrado (solo valores no nulos)", "Patente del vehículo, que se asigna al registrarlo luego de su venta."),
-  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto (modelo) del vehículo."),
+  ("id_modelo", "INT", "No", "FK → modelos(id)", "Identificador del modelo del vehículo."),
   ("id_sucursal", "INT", "No", "FK → sucursales(id)", "Identificador de la sucursal donde el vehículo reside actualmente."),
   ("id_entrega", "INT", "No", "FK → entregas(id)", "Identificador de la entrega en la que llegó el vehículo a la sucursal."),
   ("color", "VARCHAR(20)", "No", "—", "Color del vehículo."),
@@ -507,8 +629,6 @@ CREATE TABLE comisiones (
   ("id_venta", "INT", "No", "FK → ventas(id)", "Identificador de la venta cuyo vehículo recibe el service."),
   ("id_taller", "INT", "No", "FK → talleres(id)", "Identificador del taller donde se realiza el service."),
   ("fecha", "DATE", "No", "—", "Fecha del service."),
-  ("tipo", "VARCHAR(20)", "No", "DEFAULT: 'pago'. CHECK: pago, gratuito", "Tipo de service."),
-  ("costo", "BIGINT", "No", "DEFAULT: 0. CHECK: >= 0; gratuito exige costo = 0 y pago exige costo > 0", "Costo del service."),
 )
 
 == Registro RUNA
@@ -533,7 +653,7 @@ CREATE TABLE comisiones (
 == Historial de Precios
 #dic(
   ("id", "INT", "No", "PK, IDENTITY", "Identificador."),
-  ("id_auto", "INT", "No", "FK → autos(id)", "Identificador del auto cuyo precio de lista se actualizó."),
+  ("id_modelo", "INT", "No", "FK → modelos(id)", "Identificador del modelo cuyo precio de lista se actualizó."),
   ("precio_anterior", "BIGINT", "No", "CHECK: > 0", "Precio previo a la modificación."),
   ("precio_nuevo", "BIGINT", "No", "CHECK: > 0", "Precio luego de la modificación."),
   ("fecha", "DATETIME", "No", "DEFAULT: fecha y hora actual", "Fecha de la modificación."),

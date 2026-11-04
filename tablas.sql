@@ -44,15 +44,15 @@ CREATE TABLE marcas (
        CONSTRAINT uq_marcas_nombre UNIQUE (nombre)
 );
 
-CREATE TABLE autos (
+CREATE TABLE modelos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        modelo VARCHAR(255) NOT NULL,
        fecha_lanzamiento DATE NOT NULL,
        id_marca INT NOT NULL,
        precio BIGINT NOT NULL,
        FOREIGN KEY (id_marca) REFERENCES marcas(id),
-       CONSTRAINT uq_autos_modelo_marca UNIQUE (modelo, id_marca),
-       CONSTRAINT chk_autos_precio CHECK (precio > 0)
+       CONSTRAINT uq_modelos_modelo_marca UNIQUE (modelo, id_marca),
+       CONSTRAINT chk_modelos_precio CHECK (precio > 0)
 );
 
 CREATE TABLE proveedores (
@@ -77,14 +77,14 @@ CREATE TABLE vehiculos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        chasis VARCHAR(20) NOT NULL,
        patente VARCHAR(20), -- se asigna al vender
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        id_sucursal INT NOT NULL,
        id_entrega INT NOT NULL,
        color VARCHAR(20) NOT NULL,
        estado VARCHAR(20) NOT NULL DEFAULT 'disponible',
        CONSTRAINT uq_vehiculos_chasis UNIQUE (chasis),
        CONSTRAINT chk_vehiculos_estado CHECK (estado IN ('disponible', 'reservado', 'vendido', 'en_service')),
-       FOREIGN KEY (id_auto) REFERENCES autos(id),
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id),
        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id),
        FOREIGN KEY (id_entrega) REFERENCES entregas(id)
 );
@@ -130,7 +130,6 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
-       -- El service registrado es siempre gratuito y dentro del período de meses_service de la venta; pasado ese período, lo cobra el taller y no se registra en el sistema.
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
@@ -158,14 +157,14 @@ CREATE TABLE log_errores (
 
 CREATE TABLE historial_precios (
        id INT IDENTITY(1,1) PRIMARY KEY,
-       id_auto INT NOT NULL,
+       id_modelo INT NOT NULL,
        precio_anterior BIGINT NOT NULL,
        precio_nuevo BIGINT NOT NULL,
        fecha DATETIME NOT NULL DEFAULT GETDATE(),
        usuario VARCHAR(128) NOT NULL DEFAULT SUSER_SNAME(),
        CONSTRAINT chk_historial_precios_anterior CHECK (precio_anterior > 0),
        CONSTRAINT chk_historial_precios_nuevo CHECK (precio_nuevo > 0),
-       FOREIGN KEY (id_auto) REFERENCES autos(id)
+       FOREIGN KEY (id_modelo) REFERENCES modelos(id)
 );
 
 CREATE TABLE cuotas (
