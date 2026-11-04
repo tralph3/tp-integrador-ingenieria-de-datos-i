@@ -296,11 +296,6 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
-       tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
-       costo BIGINT NOT NULL DEFAULT 0,
-       CONSTRAINT chk_service_costo CHECK (costo >= 0),
-       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')),
-       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
@@ -507,8 +502,6 @@ CREATE TABLE comisiones (
   ("id_venta", "INT", "No", "FK → ventas(id)", "Identificador de la venta cuyo vehículo recibe el service."),
   ("id_taller", "INT", "No", "FK → talleres(id)", "Identificador del taller donde se realiza el service."),
   ("fecha", "DATE", "No", "—", "Fecha del service."),
-  ("tipo", "VARCHAR(20)", "No", "DEFAULT: 'pago'. CHECK: pago, gratuito", "Tipo de service."),
-  ("costo", "BIGINT", "No", "DEFAULT: 0. CHECK: >= 0; gratuito exige costo = 0 y pago exige costo > 0", "Costo del service."),
 )
 
 == Registro RUNA

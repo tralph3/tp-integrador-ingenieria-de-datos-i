@@ -130,11 +130,6 @@ CREATE TABLE service (
        id_venta INT NOT NULL,
        id_taller INT NOT NULL,
        fecha DATE NOT NULL,
-       tipo VARCHAR(20) NOT NULL DEFAULT 'pago',
-       costo BIGINT NOT NULL DEFAULT 0,
-       CONSTRAINT chk_service_costo CHECK (costo >= 0),
-       CONSTRAINT chk_service_costo_gratuito CHECK ((costo > 0 AND tipo = 'pago') OR (costo = 0 AND tipo = 'gratuito')),
-       CONSTRAINT chk_service_tipo CHECK (tipo IN ('pago', 'gratuito')),
        FOREIGN KEY (id_venta) REFERENCES ventas(id),
        FOREIGN KEY (id_taller) REFERENCES talleres(id)
 );
