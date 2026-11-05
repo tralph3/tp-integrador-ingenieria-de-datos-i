@@ -685,7 +685,139 @@ _Placeholder._
 _Placeholder: qué información se obtiene, qué función cumple la subconsulta y por qué es adecuada._
 
 = Vistas
-_Placeholder: objetivo, información presentada, tablas involucradas y motivo._
+Las vistas son consultas almacenadas que funcionan como tablas virtuales: no guardan datos propios, sino que muestran el resultado actualizado de un SELECT sobre una o más tablas. Se utilizan para consultar de forma simple información que requeriría varios JOIN y para exponer solo los datos necesarios. Son de solo lectura; las operaciones que modifican datos o validan reglas de negocio se resuelven con procedimientos almacenados y triggers.
+
+== vw_stock_disponible
+*Objetivo:* Mostrar los vehículos que actualmente están disponibles para la venta, junto con su ubicación y su precio de lista.
+
+*Información presentada:* Sucursal donde se encuentra el vehículo, marca, modelo, color, chasis, precio de lista, fecha de ingreso (entrega) y proveedor.
+
+*Tablas involucradas:* vehiculos, modelos, marcas, sucursales, entregas y proveedores.
+
+*Motivo de utilización:* El vendedor necesita conocer qué vehículos puede ofrecer sin tener que armar cada vez un JOIN de seis tablas. La vista deja visibles únicamente los vehículos con estado disponible (los vendidos, reservados o en service no aparecen) y puede filtrarse desde afuera por sucursal, marca o modelo. Es una consulta de solo lectura que no requiere parámetros ni lógica de negocio, por lo que una vista resulta más adecuada que un procedimiento almacenado.
+
+```sql
+CREATE OR ALTER VIEW vw_stock_disponible AS
+SELECT
+       v.id AS id_vehiculo,
+       s.nombre AS sucursal,
+       ma.nombre AS marca,
+       mo.modelo AS modelo,
+       v.color AS color,
+       v.chasis AS chasis,
+       mo.precio AS precio_lista,
+       e.fecha AS fecha_ingreso,
+       p.nombre AS proveedor
+FROM vehiculos v
+       INNER JOIN modelos mo ON mo.id = v.id_modelo
+       INNER JOIN marcas ma ON ma.id = mo.id_marca
+       INNER JOIN sucursales s ON s.id = v.id_sucursal
+       INNER JOIN entregas e ON e.id = v.id_entrega
+       INNER JOIN proveedores p ON p.id = e.id_proveedor
+WHERE v.estado = 'disponible';
+```
+
+== vw_catalogo_modelos
+*Objetivo:* Ofrecer el listado de modelos que comercializa la concesionaria con su marca y su precio de lista actual.
+
+*Información presentada:* Marca, país de origen de la marca, modelo, fecha de lanzamiento y precio de lista.
+
+*Tablas involucradas:* modelos y marcas.
+
+*Motivo de utilización:* Es la información que se le muestra al cliente o al área de marketing. La vista expone solo datos comerciales y evita que quien la consulta deba conocer la estructura interna de las tablas (identificadores y claves foráneas). Si el precio de un modelo cambia, la vista lo refleja automáticamente.
+
+```sql
+CREATE OR ALTER VIEW vw_catalogo_modelos AS
+SELECT
+       ma.nombre AS marca,
+       ma.origen AS origen,
+       mo.modelo AS modelo,
+       mo.fecha_lanzamiento AS fecha_lanzamiento,
+       mo.precio AS precio_lista
+FROM modelos mo
+       INNER JOIN marcas ma ON ma.id = mo.id_marca;
+```
+
+== vw_cuotas_pendientes
+*Objetivo:* Listar las cuotas de las ventas a crédito que todavía no fueron pagadas, indicando cuáles están vencidas y cuántos días de atraso tienen.
+
+*Información presentada:* Datos de contacto del cliente, vehículo vendido (marca, modelo y patente), número de cuota, monto, fecha de vencimiento, estado (vencida o a vencer) y días de atraso.
+
+*Tablas involucradas:* cuotas, ventas, clientes, vehiculos, modelos y marcas.
+
+*Motivo de utilización:* El área de cobranzas necesita identificar quién tiene deuda y desde cuándo, sin recorrer las cuotas una por una. La vista selecciona las cuotas con fecha de pago nula y calcula el atraso con la fecha actual, por lo que siempre se encuentra actualizada. Se utiliza solo para consultar: si fuera necesario notificar a los clientes o aplicar recargos, esa lógica correspondería a un procedimiento almacenado.
+
+```sql
+CREATE OR ALTER VIEW vw_cuotas_pendientes AS
+SELECT
+       cu.id AS id_cuota,
+       ve.id AS id_venta,
+       c.nombre_completo AS cliente,
+       c.telefono AS telefono,
+       c.email AS email,
+       ma.nombre AS marca,
+       mo.modelo AS modelo,
+       vh.patente AS patente,
+       cu.nro_cuota AS nro_cuota,
+       cu.monto AS monto,
+       cu.vencimiento AS vencimiento,
+       CASE
+              WHEN cu.vencimiento < CAST(GETDATE() AS DATE) THEN 'vencida'
+              ELSE 'a vencer'
+       END AS estado,
+       CASE
+              WHEN cu.vencimiento < CAST(GETDATE() AS DATE)
+                     THEN DATEDIFF(DAY, cu.vencimiento, CAST(GETDATE() AS DATE))
+              ELSE 0
+       END AS dias_atraso
+FROM cuotas cu
+       INNER JOIN ventas ve ON ve.id = cu.id_venta
+       INNER JOIN clientes c ON c.id = ve.id_cliente
+       INNER JOIN vehiculos vh ON vh.id = ve.id_vehiculo
+       INNER JOIN modelos mo ON mo.id = vh.id_modelo
+       INNER JOIN marcas ma ON ma.id = mo.id_marca
+WHERE cu.fecha_pago IS NULL;
+```
+
+== vw_service_programados
+*Objetivo:* Mostrar los service programados a partir de la fecha actual, con el cliente, el vehículo, el taller y la situación de cobertura gratuita.
+
+*Información presentada:* Fecha del service, taller y su dirección, cliente y datos de contacto, vehículo (marca, modelo y patente), fecha de venta, meses de service contratados, fecha de fin de cobertura y estado de la cobertura (vigente o vencida) a la fecha del service.
+
+*Tablas involucradas:* service, talleres, ventas, clientes, vehiculos, modelos y marcas.
+
+*Motivo de utilización:* El área de postventa necesita conocer los turnos próximos para avisar al cliente y coordinar con el taller. Como el service gratuito depende de los meses de service pactados en cada venta, la vista calcula la fecha de fin de cobertura e indica qué service quedan a cargo de la concesionaria y cuáles no. Se trata de una consulta sobre datos existentes, por lo que no requiere un procedimiento almacenado.
+
+```sql
+CREATE OR ALTER VIEW vw_service_programados AS
+SELECT
+       sv.id AS id_service,
+       sv.fecha AS fecha_service,
+       t.nombre AS taller,
+       t.direccion AS direccion_taller,
+       c.nombre_completo AS cliente,
+       c.telefono AS telefono,
+       c.email AS email,
+       ma.nombre AS marca,
+       mo.modelo AS modelo,
+       vh.patente AS patente,
+       ve.fecha AS fecha_venta,
+       ve.meses_service AS meses_service,
+       DATEADD(MONTH, ve.meses_service, ve.fecha) AS fin_cobertura,
+       CASE
+              WHEN sv.fecha <= DATEADD(MONTH, ve.meses_service, ve.fecha) THEN 'vigente'
+              ELSE 'vencida'
+       END AS cobertura
+FROM service sv
+       INNER JOIN talleres t ON t.id = sv.id_taller
+       INNER JOIN ventas ve ON ve.id = sv.id_venta
+       INNER JOIN clientes c ON c.id = ve.id_cliente
+       INNER JOIN vehiculos vh ON vh.id = ve.id_vehiculo
+       INNER JOIN modelos mo ON mo.id = vh.id_modelo
+       INNER JOIN marcas ma ON ma.id = mo.id_marca
+WHERE sv.fecha >= CAST(GETDATE() AS DATE);
+```
+
 
 = Stored Procedures
 _Placeholder._

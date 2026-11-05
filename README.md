@@ -39,16 +39,16 @@
       adecuada para resolver la problematica.
 
 ### Vistas
-- [ ] Realizar vistas y documentar su objetivo, informacion
+- [x] Realizar vistas y documentar su objetivo, informacion
       presentada, tablas involucradas y el motivo de su utilizacion.
 
 ### Stored Procedures
-- [ ] Parametros de entrada
-- [ ] Procesamiento de informacion
-- [ ] Consultas
-- [ ] Modificacion de datos
-- [ ] Validaciones
-- [ ] Manejo de errores
+- [x] Parametros de entrada
+- [x] Procesamiento de informacion
+- [x] Consultas
+- [x] Modificacion de datos
+- [x] Validaciones
+- [x] Manejo de errores
 
 ### Triggers
 Realizar triggers y documentar:
