@@ -1460,7 +1460,53 @@ SELECT * FROM dbo.fn_ventas_vendedor(1, '2025-01-01', '2025-12-31');
 ```
 
 = Manejo de errores
-_Placeholder._
+Casi todo lo frena la propia estructura de las tablas. Los triggers cubren lo que depende de otras tablas, y los procedimientos lo que queda. Si algo se rechaza, no queda ninguna operación a medio hacer.
+
+Los datos inválidos y las violaciones de restricciones los frenan los `CHECK`, las claves foráneas, los `UNIQUE` y los `NOT NULL`. Un precio negativo o un DNI repetido hacen fallar el `INSERT` con el número de error que le asigna SQL Server, y por eso los procedimientos no repiten esas validaciones. Cuando la operación viene de un procedimiento, el `CATCH` captura ese error y lo guarda en `log_errores`.
+
+Las reglas que necesitan mirar otra tabla las resuelven los triggers, que deshacen la operación con `ROLLBACK` y lanzan un error propio con `THROW` (50001 a 50008). Acá entran las operaciones no permitidas, como registrar un service fuera de plazo o poner en el RUNA a alguien que no compró el vehículo.
+
+Los procedimientos se ocupan del resto. Revisan los parámetros, como una cantidad de cuotas fuera de rango o un porcentaje de aumento menor o igual a cero, y que existan el modelo o la marca que se van a modificar (un `UPDATE` sobre un id inexistente no falla, y ninguna clave foránea lo impide). También rechazan las operaciones no permitidas que no encajan en un trigger, como liquidar la comisión de una venta cuyo cliente todavía debe cuotas. Menor de edad, vendedor activo y vehículo disponible se controlan en los dos lugares: el procedimiento falla primero y con un mensaje más claro, y el trigger sigue protegiendo cuando alguien inserta en `ventas` directamente.
+
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Código*][*Origen*][*Situación*],
+    [50001], [`trg_cuotas_solo_credito`], [Cuotas en una venta que no es a crédito.],
+    [50002], [`trg_ventas_validar`], [Cliente menor de 18 años.],
+    [50003], [`trg_ventas_validar`], [Empleado que no es vendedor o no está activo.],
+    [50004], [`trg_ventas_validar`], [Vehículo no disponible.],
+    [50006], [`trg_service_vigencia`], [Service fuera del plazo de vigencia.],
+    [50007], [`trg_registro_runa_cliente`], [Registro RUNA de un vehículo sin venta.],
+    [50008], [`trg_registro_runa_cliente`], [Cliente del RUNA distinto del comprador.],
+    [51001], [`sp_registrar_venta`], [Patente no indicada.],
+    [51002], [`sp_registrar_venta`], [Cliente menor de 18 años.],
+    [51003], [`sp_registrar_venta`], [Vendedor inexistente, inactivo o de otro tipo.],
+    [51004], [`sp_registrar_venta`], [Vehículo no disponible.],
+    [51101], [`sp_generar_cuotas`], [Cantidad de cuotas fuera de 1 a 120.],
+    [51201], [`sp_actualizar_precio_modelo`], [Modelo inexistente.],
+    [51202], [`sp_actualizar_precio_modelo`], [Precio nuevo igual al actual.],
+    [51301], [`sp_aumentar_precios_marca`], [Porcentaje de aumento menor o igual a 0.],
+    [51302], [`sp_aumentar_precios_marca`], [Marca inexistente.],
+    [51401], [`sp_liquidar_comisiones`], [Comisión ya liquidada.],
+    [51402], [`sp_liquidar_comisiones`], [Venta a crédito con cuotas sin pagar.],
+  )
+}
+
+Cada procedimiento que modifica datos abre una transacción y la confirma al final. Si algo falla, el `CATCH` hace `ROLLBACK` solo si todavía hay una transacción abierta (`@@TRANCOUNT > 0`), porque un trigger puede haberla deshecho antes. Después llama a `sp_log_error` y relanza el error con `THROW` para que lo vea quien llamó. Ese orden importa: si el registro se hiciera antes, el `ROLLBACK` lo borraría. `sp_registrar_venta` además bloquea la fila del vehículo con `UPDLOCK` hasta confirmar, así que dos ventas simultáneas del mismo vehículo no pasan las dos. En los cursores cada fila va en su propio `TRY`: el error de una se registra y el recorrido sigue.
+
+`log_errores` guarda la fecha, el usuario de SQL Server, el procedimiento, el número de error y el mensaje. Los errores de un trigger quedan registrados solo si la operación vino de un procedimiento; si se inserta directo en la tabla, el error le llega al cliente y no se guarda. Para que la tabla tenga contenido, los datos de prueba incluyen seis llamadas que fallan a propósito, por ejemplo vender un vehículo que ya se vendió o cambiar el precio de un modelo que no existe.
+
+*Ejemplo*
+```sql
+SELECT fecha, usuario, procedimiento, numero_error, mensaje
+FROM log_errores
+ORDER BY id;
+```
 
 = Seguridad de la base de datos
 _Placeholder: usuarios, roles, permisos y protección de información sensible._
