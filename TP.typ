@@ -688,13 +688,21 @@ _Placeholder: qué información se obtiene, qué función cumple la subconsulta 
 Las vistas son consultas almacenadas que funcionan como tablas virtuales: no guardan datos propios, sino que muestran el resultado actualizado de un SELECT sobre una o más tablas. Se utilizan para consultar de forma simple información que requeriría varios JOIN y para exponer solo los datos necesarios. Son de solo lectura; las operaciones que modifican datos o validan reglas de negocio se resuelven con procedimientos almacenados y triggers.
 
 == vw_stock_disponible
-*Objetivo:* Mostrar los vehículos que actualmente están disponibles para la venta, junto con su ubicación y su precio de lista.
+*Objetivo*
 
-*Información presentada:* Sucursal donde se encuentra el vehículo, marca, modelo, color, chasis, precio de lista, fecha de ingreso (entrega) y proveedor.
+Mostrar los vehículos que actualmente están disponibles para la venta, junto con su ubicación y su precio de lista.
 
-*Tablas involucradas:* vehiculos, modelos, marcas, sucursales, entregas y proveedores.
+*Información presentada*
 
-*Motivo de utilización:* El vendedor necesita conocer qué vehículos puede ofrecer sin tener que armar cada vez un JOIN de seis tablas. La vista deja visibles únicamente los vehículos con estado disponible (los vendidos, reservados o en service no aparecen) y puede filtrarse desde afuera por sucursal, marca o modelo. Es una consulta de solo lectura que no requiere parámetros ni lógica de negocio, por lo que una vista resulta más adecuada que un procedimiento almacenado.
+Sucursal donde se encuentra el vehículo, marca, modelo, color, chasis, precio de lista, fecha de ingreso (entrega) y proveedor.
+
+*Tablas involucradas*
+
+vehiculos, modelos, marcas, sucursales, entregas y proveedores.
+
+*Motivo de utilización*
+
+El vendedor necesita conocer qué vehículos puede ofrecer sin tener que armar cada vez un JOIN de seis tablas. La vista deja visibles únicamente los vehículos con estado disponible (los vendidos, reservados o en service no aparecen) y puede filtrarse desde afuera por sucursal, marca o modelo. Es una consulta de solo lectura que no requiere parámetros ni lógica de negocio, por lo que una vista resulta más adecuada que un procedimiento almacenado.
 
 ```sql
 CREATE OR ALTER VIEW vw_stock_disponible AS
@@ -718,13 +726,21 @@ WHERE v.estado = 'disponible';
 ```
 
 == vw_catalogo_modelos
-*Objetivo:* Ofrecer el listado de modelos que comercializa la concesionaria con su marca y su precio de lista actual.
+*Objetivo*
 
-*Información presentada:* Marca, país de origen de la marca, modelo, fecha de lanzamiento y precio de lista.
+Ofrecer el listado de modelos que comercializa la concesionaria con su marca y su precio de lista actual.
 
-*Tablas involucradas:* modelos y marcas.
+*Información presentada*
 
-*Motivo de utilización:* Es la información que se le muestra al cliente o al área de marketing. La vista expone solo datos comerciales y evita que quien la consulta deba conocer la estructura interna de las tablas (identificadores y claves foráneas). Si el precio de un modelo cambia, la vista lo refleja automáticamente.
+Marca, país de origen de la marca, modelo, fecha de lanzamiento y precio de lista.
+
+*Tablas involucradas*
+
+modelos y marcas.
+
+*Motivo de utilización*
+
+Es la información que se le muestra al cliente o al área de marketing. La vista expone solo datos comerciales y evita que quien la consulta deba conocer la estructura interna de las tablas (identificadores y claves foráneas). Si el precio de un modelo cambia, la vista lo refleja automáticamente.
 
 ```sql
 CREATE OR ALTER VIEW vw_catalogo_modelos AS
@@ -739,13 +755,21 @@ FROM modelos mo
 ```
 
 == vw_cuotas_pendientes
-*Objetivo:* Listar las cuotas de las ventas a crédito que todavía no fueron pagadas, indicando cuáles están vencidas y cuántos días de atraso tienen.
+*Objetivo*
 
-*Información presentada:* Datos de contacto del cliente, vehículo vendido (marca, modelo y patente), número de cuota, monto, fecha de vencimiento, estado (vencida o a vencer) y días de atraso.
+Listar las cuotas de las ventas a crédito que todavía no fueron pagadas, indicando cuáles están vencidas y cuántos días de atraso tienen.
 
-*Tablas involucradas:* cuotas, ventas, clientes, vehiculos, modelos y marcas.
+*Información presentada*
 
-*Motivo de utilización:* El área de cobranzas necesita identificar quién tiene deuda y desde cuándo, sin recorrer las cuotas una por una. La vista selecciona las cuotas con fecha de pago nula y calcula el atraso con la fecha actual, por lo que siempre se encuentra actualizada. Se utiliza solo para consultar: si fuera necesario notificar a los clientes o aplicar recargos, esa lógica correspondería a un procedimiento almacenado.
+Datos de contacto del cliente, vehículo vendido (marca, modelo y patente), número de cuota, monto, fecha de vencimiento, estado (vencida o a vencer) y días de atraso.
+
+*Tablas involucradas*
+
+cuotas, ventas, clientes, vehiculos, modelos y marcas.
+
+*Motivo de utilización*
+
+El área de cobranzas necesita identificar quién tiene deuda y desde cuándo, sin recorrer las cuotas una por una. La vista selecciona las cuotas con fecha de pago nula y calcula el atraso con la fecha actual, por lo que siempre se encuentra actualizada. Se utiliza solo para consultar: si fuera necesario notificar a los clientes o aplicar recargos, esa lógica correspondería a un procedimiento almacenado.
 
 ```sql
 CREATE OR ALTER VIEW vw_cuotas_pendientes AS
@@ -780,13 +804,21 @@ WHERE cu.fecha_pago IS NULL;
 ```
 
 == vw_service_programados
-*Objetivo:* Mostrar los service programados a partir de la fecha actual, con el cliente, el vehículo, el taller y la situación de cobertura gratuita.
+*Objetivo*
 
-*Información presentada:* Fecha del service, taller y su dirección, cliente y datos de contacto, vehículo (marca, modelo y patente), fecha de venta, meses de service contratados, fecha de fin de cobertura y estado de la cobertura (vigente o vencida) a la fecha del service.
+Mostrar los service programados a partir de la fecha actual, con el cliente, el vehículo, el taller y la situación de cobertura gratuita.
 
-*Tablas involucradas:* service, talleres, ventas, clientes, vehiculos, modelos y marcas.
+*Información presentada*
 
-*Motivo de utilización:* El área de postventa necesita conocer los turnos próximos para avisar al cliente y coordinar con el taller. Como el service gratuito depende de los meses de service pactados en cada venta, la vista calcula la fecha de fin de cobertura e indica qué service quedan a cargo de la concesionaria y cuáles no. Se trata de una consulta sobre datos existentes, por lo que no requiere un procedimiento almacenado.
+Fecha del service, taller y su dirección, cliente y datos de contacto, vehículo (marca, modelo y patente), fecha de venta, meses de service contratados, fecha de fin de cobertura y estado de la cobertura (vigente o vencida) a la fecha del service.
+
+*Tablas involucradas*
+
+service, talleres, ventas, clientes, vehiculos, modelos y marcas.
+
+*Motivo de utilización*
+
+El área de postventa necesita conocer los turnos próximos para avisar al cliente y coordinar con el taller. Como el service gratuito depende de los meses de service pactados en cada venta, la vista calcula la fecha de fin de cobertura e indica qué service quedan a cargo de la concesionaria y cuáles no. Se trata de una consulta sobre datos existentes, por lo que no requiere un procedimiento almacenado.
 
 ```sql
 CREATE OR ALTER VIEW vw_service_programados AS
@@ -836,7 +868,7 @@ END;
 ```
 
 == `sp_registrar_venta`
-Registra la venta de un vehículo, que es el proceso central de la concesionaria. Recibe el cliente, el vendedor, el vehículo, la plataforma, el precio en centavos, el medio de pago, la patente con la que sale el auto y, si se quiere, los meses de service (por defecto 6). Devuelve el id de la venta en `@id_venta`.
+Registra la venta de un vehículo, que es el proceso central de la concesionaria. Recibe el cliente, el vendedor, el vehículo, la plataforma, el precio en centavos, el medio de pago, la patente con la que sale el auto y, si se quiere, los meses de service (por defecto 6) y la fecha de la venta (por defecto hoy). Devuelve el id de la venta en `@id_venta`.
 
 Consulta al cliente, al vendedor y al vehículo, y modifica dos tablas: inserta la venta y pasa el vehículo a `vendido` con su patente. Las dos cosas van en una transacción, porque no puede quedar una sin la otra. El vehículo se lee con `UPDLOCK` para que dos ventas simultáneas no tomen el mismo auto.
 
@@ -852,17 +884,20 @@ CREATE OR ALTER PROCEDURE sp_registrar_venta
        @medio_pago VARCHAR(30),
        @patente VARCHAR(20),
        @meses_service INT = 6,
+       @fecha DATE = NULL,
        @id_venta INT OUTPUT
 AS
 BEGIN
        SET NOCOUNT ON;
        BEGIN TRY
+              SET @fecha = ISNULL(@fecha, CAST(GETDATE() AS DATE));
+
               IF @patente IS NULL
                      THROW 51001, 'Se debe indicar la patente con la que se vende el vehiculo.', 1;
 
               DECLARE @nacimiento DATE;
               SELECT @nacimiento = fecha_nacimiento FROM clientes WHERE id = @id_cliente;
-              IF DATEADD(YEAR, 18, @nacimiento) > CAST(GETDATE() AS DATE)
+              IF DATEADD(YEAR, 18, @nacimiento) > @fecha
                      THROW 51002, 'El cliente debe ser mayor de 18 anios.', 1;
 
               IF NOT EXISTS (SELECT 1 FROM empleados WHERE id = @id_vendedor AND tipo = 'vendedor' AND estado = 'activo')
@@ -875,8 +910,8 @@ BEGIN
               IF @estado != 'disponible'
                      THROW 51004, 'El vehiculo no esta disponible para la venta.', 1;
 
-              INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, precio, medio_pago, meses_service)
-              VALUES (@id_cliente, @id_vendedor, @id_vehiculo, @id_plataforma, @precio, @medio_pago, @meses_service);
+              INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, fecha, precio, medio_pago, meses_service)
+              VALUES (@id_cliente, @id_vendedor, @id_vehiculo, @id_plataforma, @fecha, @precio, @medio_pago, @meses_service);
               SET @id_venta = SCOPE_IDENTITY();
 
               UPDATE vehiculos
@@ -896,7 +931,7 @@ END;
 *Ejemplo*
 ```sql
 DECLARE @id_venta INT;
-EXEC sp_registrar_venta @id_cliente = 1, @id_vendedor = 1, @id_vehiculo = 4,
+EXEC sp_registrar_venta @id_cliente = 1, @id_vendedor = 1, @id_vehiculo = 10,
      @id_plataforma = 1, @precio = 6400000000, @medio_pago = 'efectivo',
      @patente = 'AE204LP', @id_venta = @id_venta OUTPUT;
 ```
