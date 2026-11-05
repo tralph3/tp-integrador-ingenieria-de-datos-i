@@ -349,7 +349,7 @@ Registra los vehículos que la empresa posee. A diferencia de `modelos`, estos n
 CREATE TABLE vehiculos (
        id INT IDENTITY(1,1) PRIMARY KEY,
        chasis VARCHAR(20) NOT NULL,
-       patente VARCHAR(20), -- se asigna al vender
+       patente VARCHAR(20),
        id_modelo INT NOT NULL,
        id_sucursal INT NOT NULL,
        id_entrega INT NOT NULL,
@@ -394,7 +394,7 @@ CREATE TABLE ventas (
        FOREIGN KEY (id_vendedor) REFERENCES empleados(id),
        FOREIGN KEY (id_vehiculo) REFERENCES vehiculos(id),
        FOREIGN KEY (id_plataforma) REFERENCES plataformas(id),
-       CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo), -- no se puede vender el mismo auto mas de una vez
+       CONSTRAINT uq_ventas_id_vehiculo UNIQUE (id_vehiculo),
        CONSTRAINT chk_ventas_precio CHECK (precio > 0),
        CONSTRAINT chk_ventas_meses_service CHECK (meses_service >= 0),
        CONSTRAINT chk_ventas_medio_pag CHECK (medio_pago IN ('efectivo', 'transferencia', 'debito', 'credito')),
@@ -486,7 +486,7 @@ CREATE TABLE cuotas (
        nro_cuota INT NOT NULL,
        monto BIGINT NOT NULL,
        vencimiento DATE NOT NULL,
-       fecha_pago DATE, -- NULL hasta que se paga
+       fecha_pago DATE,
        CONSTRAINT uq_cuotas_id_venta_nro_cuota UNIQUE (id_venta, nro_cuota),
        CONSTRAINT chk_cuotas_nro_cuota CHECK (nro_cuota > 0),
        CONSTRAINT chk_cuotas_monto CHECK (monto > 0),
@@ -502,7 +502,7 @@ CREATE TABLE comisiones (
        id INT IDENTITY(1,1) PRIMARY KEY,
        id_venta INT NOT NULL,
        monto BIGINT NOT NULL,
-       fecha_liquidacion DATE, -- NULL hasta que se liquida
+       fecha_liquidacion DATE,
        CONSTRAINT uq_comisiones_id_venta UNIQUE (id_venta),
        CONSTRAINT chk_comisiones_monto CHECK (monto >= 0),
        FOREIGN KEY (id_venta) REFERENCES ventas(id)
@@ -825,7 +825,6 @@ Se implementaron los siguientes procedimientos para cubrir los procesos principa
 Para no repetir ese `INSERT` en cada `CATCH` hay un procedimiento auxiliar, `sp_log_error`. Recibe el nombre del procedimiento, y el número y el mensaje los toma de `ERROR_NUMBER()` y `ERROR_MESSAGE()`.
 
 ```sql
--- sp_log_error: guarda en log_errores el error del CATCH que la llama.
 CREATE OR ALTER PROCEDURE sp_log_error
        @procedimiento VARCHAR(100)
 AS
@@ -844,9 +843,6 @@ Consulta al cliente, al vendedor y al vehículo, y modifica dos tablas: inserta 
 Valida a mano solo lo que una constraint no puede expresar: que haya patente (error 51001), que el cliente tenga 18 años (51002), que el vendedor esté activo y sea de tipo vendedor (51003) y que el vehículo esté disponible (51004). El precio, el medio de pago y la existencia de los registros ya los controlan los `CHECK` y las claves foráneas de `ventas`. La comisión la genera un trigger sobre `ventas`.
 
 ```sql
--- sp_registrar_venta: registra la venta y marca el vehiculo como vendido.
--- La comision la genera el trigger de ventas. Si es a credito, las cuotas
--- se generan despues con sp_generar_cuotas.
 CREATE OR ALTER PROCEDURE sp_registrar_venta
        @id_cliente INT,
        @id_vendedor INT,
@@ -913,8 +909,6 @@ La división del precio es entera y descarta el resto, así que la última cuota
 Que la venta exista, que sea a crédito y que no tenga cuotas ya cargadas lo controlan la clave foránea, el trigger de cuotas y el `UNIQUE (id_venta, nro_cuota)`. Acá solo se valida el rango de la cantidad (error 51101).
 
 ```sql
--- sp_generar_cuotas: reparte el precio de una venta a credito en cuotas
--- mensuales iguales. La ultima cuota absorbe el resto de la division.
 CREATE OR ALTER PROCEDURE sp_generar_cuotas
        @id_venta INT,
        @cantidad INT
@@ -967,7 +961,6 @@ Cambia el precio de lista de un modelo. Recibe el id del modelo y el precio nuev
 Valida que el modelo exista (error 51201), porque un `UPDATE` sobre un id que no existe no falla y nadie se enteraría, y que el precio nuevo sea distinto del actual (51202), para no llenar el historial con cambios que no cambian nada. Que el precio sea mayor a 0 lo controla el `CHECK` de `modelos`.
 
 ```sql
--- sp_actualizar_precio_modelo: cambia el precio de lista de un modelo.
 CREATE OR ALTER PROCEDURE sp_actualizar_precio_modelo
        @id_modelo INT,
        @precio_nuevo BIGINT
@@ -975,7 +968,6 @@ AS
 BEGIN
        SET NOCOUNT ON;
        BEGIN TRY
-              -- Un UPDATE sobre un id inexistente no falla, por eso se controla aca.
               DECLARE @precio_actual BIGINT;
               SELECT @precio_actual = precio FROM modelos WHERE id = @id_modelo;
               IF @precio_actual IS NULL
@@ -1002,7 +994,156 @@ EXEC sp_actualizar_precio_modelo @id_modelo = 1, @precio_nuevo = 6800000000;
 _Placeholder: evento, tabla, condición, acción y regla de negocio._
 
 = Cursores
-_Placeholder: problema, motivo, registros procesados y operación por registro._
+Un cursor permite recorrer el resultado de una consulta fila por fila y ejecutar una operación sobre cada una. Como es más lento que una operación por conjuntos, en este trabajo se utiliza solo cuando cada fila requiere un tratamiento individual que una única sentencia no puede dar. Todos se declaran `LOCAL`, `STATIC` y `READ_ONLY`: el conjunto queda fijo al abrir el cursor, y se libera solo al terminar el procedimiento que lo contiene.
+
+== sp_aumentar_precios_marca
+*Problema que se desea resolver:* Aplicar un aumento porcentual al precio de lista de todos los modelos de una marca, por ejemplo cuando el proveedor actualiza sus precios.
+
+*Motivo por el cual se utiliza un cursor:* Cada modelo debe pasar por sp_actualizar_precio_modelo, que valida que el modelo exista y que el precio cambie, y registra los errores. Un UPDATE masivo sobre modelos se saltearía esas validaciones, y un procedimiento no puede aplicarse a un conjunto de filas: hay que invocarlo una vez por fila. Además, el cursor permite que, si un modelo falla, el error quede registrado y se continúe con los demás.
+
+*Registros procesados:* Los modelos de la marca indicada (tabla modelos, filtrada por id_marca), tomados al abrir el cursor y ordenados por id.
+
+*Operación realizada sobre cada registro:* Se calcula el precio nuevo como el precio actual más el porcentaje indicado, redondeado al entero más cercano, y se ejecuta sp_actualizar_precio_modelo con ese valor. Si el procedimiento falla, se cuenta como fallido y se continúa con el siguiente. Al finalizar se informa la cantidad de modelos actualizados y fallidos.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_aumentar_precios_marca
+       @id_marca INT,
+       @porcentaje DECIMAL(5,2)
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              IF @porcentaje IS NULL OR @porcentaje <= 0
+                     THROW 51301, 'El porcentaje de aumento debe ser mayor a 0.', 1;
+
+              IF NOT EXISTS (SELECT 1 FROM marcas WHERE id = @id_marca)
+                     THROW 51302, 'La marca no existe.', 1;
+
+              DECLARE @id_modelo INT, @precio_actual BIGINT, @precio_nuevo BIGINT;
+              DECLARE @actualizados INT = 0, @fallidos INT = 0;
+
+              DECLARE c_modelos CURSOR LOCAL STATIC READ_ONLY FOR
+                     SELECT id, precio FROM modelos WHERE id_marca = @id_marca ORDER BY id;
+
+              OPEN c_modelos;
+              FETCH NEXT FROM c_modelos INTO @id_modelo, @precio_actual;
+
+              WHILE @@FETCH_STATUS = 0
+              BEGIN
+                     SET @precio_nuevo = CAST(ROUND(@precio_actual * (1 + @porcentaje / 100.0), 0) AS BIGINT);
+
+                     BEGIN TRY
+                            EXEC sp_actualizar_precio_modelo @id_modelo, @precio_nuevo;
+                            SET @actualizados += 1;
+                     END TRY
+                     BEGIN CATCH
+                            SET @fallidos += 1;
+                     END CATCH
+
+                     FETCH NEXT FROM c_modelos INTO @id_modelo, @precio_actual;
+              END;
+
+              CLOSE c_modelos;
+              DEALLOCATE c_modelos;
+
+              SELECT @actualizados AS modelos_actualizados, @fallidos AS modelos_fallidos;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_aumentar_precios_marca';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+EXEC sp_aumentar_precios_marca @id_marca = 1, @porcentaje = 5;
+```
+
+== sp_liquidar_comisiones
+*Problema que se desea resolver:* Liquidar las comisiones de venta que están pendientes (con fecha de liquidación nula), registrando la fecha de liquidación, sin que una comisión que todavía no corresponde pagar impida liquidar las demás.
+
+*Motivo por el cual se utiliza un cursor:* Cada comisión se evalúa por separado: si la venta fue a crédito, solo corresponde liquidarla cuando el cliente terminó de pagar todas las cuotas, y se verifica además que otro proceso no la haya liquidado mientras se recorría el conjunto. Cada liquidación se ejecuta en su propia transacción y, cuando una se rechaza, el motivo queda guardado en log_errores con el número de comisión y se sigue con la siguiente. Un único UPDATE no puede aislar el error de cada fila, y el registro de errores del sistema (sp_log_error) se apoya en el CATCH, que actúa sobre una fila por vez.
+
+*Registros procesados:* Las comisiones con fecha_liquidacion nula, junto con el medio de pago de la venta asociada (tablas comisiones y ventas), ordenadas por id.
+
+*Operación realizada sobre cada registro:* Se bloquea la comisión y se verifica que siga pendiente; si la venta es a crédito, se verifica que tenga cuotas y que todas estén pagas. Si se cumple, se asigna la fecha actual a fecha_liquidacion y se confirma la transacción. Si no, se deshace, se registra el error y se cuenta la comisión como rechazada. Al finalizar se informa cuántas comisiones se liquidaron y cuántas se rechazaron.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_liquidar_comisiones
+AS
+BEGIN
+       SET NOCOUNT ON;
+       SET CURSOR_CLOSE_ON_COMMIT OFF;
+       BEGIN TRY
+              DECLARE @id_comision INT, @id_venta INT, @medio_pago VARCHAR(30);
+              DECLARE @ya_liquidada DATE, @msg NVARCHAR(200);
+              DECLARE @fecha DATE = CAST(GETDATE() AS DATE);
+              DECLARE @liquidadas INT = 0, @rechazadas INT = 0;
+
+              DECLARE c_comisiones CURSOR LOCAL STATIC READ_ONLY FOR
+                     SELECT co.id, co.id_venta, ve.medio_pago
+                     FROM comisiones co
+                            INNER JOIN ventas ve ON ve.id = co.id_venta
+                     WHERE co.fecha_liquidacion IS NULL
+                     ORDER BY co.id;
+
+              OPEN c_comisiones;
+              FETCH NEXT FROM c_comisiones INTO @id_comision, @id_venta, @medio_pago;
+
+              WHILE @@FETCH_STATUS = 0
+              BEGIN
+                     BEGIN TRY
+                            BEGIN TRANSACTION;
+
+                            SELECT @ya_liquidada = fecha_liquidacion
+                            FROM comisiones WITH (UPDLOCK) WHERE id = @id_comision;
+                            IF @ya_liquidada IS NOT NULL
+                            BEGIN
+                                   SET @msg = CONCAT('Comision ', @id_comision, ': ya fue liquidada.');
+                                   THROW 51401, @msg, 1;
+                            END;
+
+                            IF @medio_pago = 'credito'
+                               AND (NOT EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta)
+                                    OR EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta AND fecha_pago IS NULL))
+                            BEGIN
+                                   SET @msg = CONCAT('Comision ', @id_comision, ': la venta a credito tiene cuotas sin pagar.');
+                                   THROW 51402, @msg, 1;
+                            END;
+
+                            UPDATE comisiones SET fecha_liquidacion = @fecha WHERE id = @id_comision;
+
+                            COMMIT TRANSACTION;
+                            SET @liquidadas += 1;
+                     END TRY
+                     BEGIN CATCH
+                            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                            EXEC sp_log_error 'sp_liquidar_comisiones';
+                            SET @rechazadas += 1;
+                     END CATCH
+
+                     FETCH NEXT FROM c_comisiones INTO @id_comision, @id_venta, @medio_pago;
+              END;
+
+              CLOSE c_comisiones;
+              DEALLOCATE c_comisiones;
+
+              SELECT @liquidadas AS comisiones_liquidadas, @rechazadas AS comisiones_rechazadas;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_liquidar_comisiones';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+EXEC sp_liquidar_comisiones;
+```
 
 = Funciones
 _Placeholder: objetivo, parámetros, tipo de retorno, lógica y ejemplo._
