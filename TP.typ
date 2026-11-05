@@ -688,7 +688,183 @@ _Placeholder: qué información se obtiene, qué función cumple la subconsulta 
 _Placeholder: objetivo, información presentada, tablas involucradas y motivo._
 
 = Stored Procedures
-_Placeholder._
+Se implementaron los siguientes procedimientos para cubrir los procesos principales de la concesionaria. Todos los de negocio siguen el mismo esquema de errores: el `CATCH` deshace lo que haya quedado abierto, guarda el error con `sp_log_error` y lo vuelve a lanzar con `THROW` para que lo vea quien llamó. El registro va después del `ROLLBACK`, porque si va antes el `ROLLBACK` lo borra.
+
+Para no repetir ese `INSERT` en cada `CATCH` hay un procedimiento auxiliar, `sp_log_error`. Recibe el nombre del procedimiento, y el número y el mensaje los toma de `ERROR_NUMBER()` y `ERROR_MESSAGE()`.
+
+```sql
+-- sp_log_error: guarda en log_errores el error del CATCH que la llama.
+CREATE OR ALTER PROCEDURE sp_log_error
+       @procedimiento VARCHAR(100)
+AS
+BEGIN
+       SET NOCOUNT ON;
+       INSERT INTO log_errores (procedimiento, numero_error, mensaje)
+       VALUES (@procedimiento, ERROR_NUMBER(), LEFT(ERROR_MESSAGE(), 2048));
+END;
+```
+
+== `sp_registrar_venta`
+Registra la venta de un vehículo, que es el proceso central de la concesionaria. Recibe el cliente, el vendedor, el vehículo, la plataforma, el precio en centavos, el medio de pago, la patente con la que sale el auto y, si se quiere, los meses de service (por defecto 6). Devuelve el id de la venta en `@id_venta`.
+
+Consulta al cliente, al vendedor y al vehículo, y modifica dos tablas: inserta la venta y pasa el vehículo a `vendido` con su patente. Las dos cosas van en una transacción, porque no puede quedar una sin la otra. El vehículo se lee con `UPDLOCK` para que dos ventas simultáneas no tomen el mismo auto.
+
+Valida a mano solo lo que una constraint no puede expresar: que haya patente (error 51001), que el cliente tenga 18 años (51002), que el vendedor esté activo y sea de tipo vendedor (51003) y que el vehículo esté disponible (51004). El precio, el medio de pago y la existencia de los registros ya los controlan los `CHECK` y las claves foráneas de `ventas`. La comisión la genera un trigger sobre `ventas`.
+
+```sql
+-- sp_registrar_venta: registra la venta y marca el vehiculo como vendido.
+-- La comision la genera el trigger de ventas. Si es a credito, las cuotas
+-- se generan despues con sp_generar_cuotas.
+CREATE OR ALTER PROCEDURE sp_registrar_venta
+       @id_cliente INT,
+       @id_vendedor INT,
+       @id_vehiculo INT,
+       @id_plataforma INT,
+       @precio BIGINT,
+       @medio_pago VARCHAR(30),
+       @patente VARCHAR(20),
+       @meses_service INT = 6,
+       @id_venta INT OUTPUT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              IF @patente IS NULL
+                     THROW 51001, 'Se debe indicar la patente con la que se vende el vehiculo.', 1;
+
+              DECLARE @nacimiento DATE;
+              SELECT @nacimiento = fecha_nacimiento FROM clientes WHERE id = @id_cliente;
+              IF DATEADD(YEAR, 18, @nacimiento) > CAST(GETDATE() AS DATE)
+                     THROW 51002, 'El cliente debe ser mayor de 18 anios.', 1;
+
+              IF NOT EXISTS (SELECT 1 FROM empleados WHERE id = @id_vendedor AND tipo = 'vendedor' AND estado = 'activo')
+                     THROW 51003, 'El vendedor no existe o no esta activo.', 1;
+
+              BEGIN TRANSACTION;
+
+              DECLARE @estado VARCHAR(20);
+              SELECT @estado = estado FROM vehiculos WITH (UPDLOCK) WHERE id = @id_vehiculo;
+              IF @estado <> 'disponible'
+                     THROW 51004, 'El vehiculo no esta disponible para la venta.', 1;
+
+              INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, precio, medio_pago, meses_service)
+              VALUES (@id_cliente, @id_vendedor, @id_vehiculo, @id_plataforma, @precio, @medio_pago, @meses_service);
+              SET @id_venta = SCOPE_IDENTITY();
+
+              UPDATE vehiculos
+              SET estado = 'vendido', patente = @patente
+              WHERE id = @id_vehiculo;
+
+              COMMIT TRANSACTION;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_registrar_venta';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+DECLARE @id_venta INT;
+EXEC sp_registrar_venta @id_cliente = 1, @id_vendedor = 1, @id_vehiculo = 4,
+     @id_plataforma = 1, @precio = 6400000000, @medio_pago = 'efectivo',
+     @patente = 'AE204LP', @id_venta = @id_venta OUTPUT;
+```
+
+== `sp_generar_cuotas`
+Reparte el precio de una venta a crédito en cuotas mensuales. Recibe el id de la venta y la cantidad de cuotas, que tiene que estar entre 1 y 120. Lee el precio y la fecha de la venta, y genera los números de cuota con una consulta recursiva, sin cursor. El primer vencimiento cae un mes después de la venta.
+
+La división del precio es entera y descarta el resto, así que la última cuota absorbe la diferencia para que todas sumen exactamente el precio. Las inserciones van en una transacción: o se crean todas las cuotas o ninguna.
+
+Que la venta exista, que sea a crédito y que no tenga cuotas ya cargadas lo controlan la clave foránea, el trigger de cuotas y el `UNIQUE (id_venta, nro_cuota)`. Acá solo se valida el rango de la cantidad (error 51101).
+
+```sql
+-- sp_generar_cuotas: reparte el precio de una venta a credito en cuotas
+-- mensuales iguales. La ultima cuota absorbe el resto de la division.
+CREATE OR ALTER PROCEDURE sp_generar_cuotas
+       @id_venta INT,
+       @cantidad INT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              IF @cantidad IS NULL OR @cantidad < 1 OR @cantidad > 120
+                     THROW 51101, 'La cantidad de cuotas debe estar entre 1 y 120.', 1;
+
+              DECLARE @precio BIGINT, @fecha DATE;
+              SELECT @precio = precio, @fecha = fecha
+              FROM ventas WHERE id = @id_venta;
+
+              DECLARE @monto BIGINT = @precio / @cantidad;
+
+              BEGIN TRANSACTION;
+
+              WITH n AS (
+                     SELECT 1 AS nro
+                     UNION ALL
+                     SELECT nro + 1 FROM n WHERE nro < @cantidad
+              )
+              INSERT INTO cuotas (id_venta, nro_cuota, monto, vencimiento)
+              SELECT @id_venta,
+                     nro,
+                     CASE WHEN nro = @cantidad THEN @precio - @monto * (@cantidad - 1) ELSE @monto END,
+                     DATEADD(MONTH, nro, @fecha)
+              FROM n
+              OPTION (MAXRECURSION 120);
+
+              COMMIT TRANSACTION;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_generar_cuotas';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+EXEC sp_generar_cuotas @id_venta = 2, @cantidad = 3;
+```
+
+== `sp_actualizar_precio_modelo`
+Cambia el precio de lista de un modelo. Recibe el id del modelo y el precio nuevo en centavos. Consulta el precio actual y actualiza `modelos`. El cambio queda guardado en `historial_precios` por un trigger sobre `modelos`, así que el procedimiento no escribe ahí.
+
+Valida que el modelo exista (error 51201), porque un `UPDATE` sobre un id que no existe no falla y nadie se enteraría, y que el precio nuevo sea distinto del actual (51202), para no llenar el historial con cambios que no cambian nada. Que el precio sea mayor a 0 lo controla el `CHECK` de `modelos`.
+
+```sql
+-- sp_actualizar_precio_modelo: cambia el precio de lista de un modelo.
+CREATE OR ALTER PROCEDURE sp_actualizar_precio_modelo
+       @id_modelo INT,
+       @precio_nuevo BIGINT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              -- Un UPDATE sobre un id inexistente no falla, por eso se controla aca.
+              DECLARE @precio_actual BIGINT;
+              SELECT @precio_actual = precio FROM modelos WHERE id = @id_modelo;
+              IF @precio_actual IS NULL
+                     THROW 51201, 'El modelo no existe.', 1;
+              IF @precio_actual = @precio_nuevo
+                     THROW 51202, 'El precio nuevo es igual al actual.', 1;
+
+              UPDATE modelos SET precio = @precio_nuevo WHERE id = @id_modelo;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_actualizar_precio_modelo';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+EXEC sp_actualizar_precio_modelo @id_modelo = 1, @precio_nuevo = 6800000000;
+```
 
 = Triggers
 _Placeholder: evento, tabla, condición, acción y regla de negocio._

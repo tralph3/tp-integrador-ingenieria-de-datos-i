@@ -107,3 +107,29 @@ BEGIN
        END CATCH
 END;
 GO
+
+-- sp_actualizar_precio_modelo: cambia el precio de lista de un modelo.
+CREATE OR ALTER PROCEDURE sp_actualizar_precio_modelo
+       @id_modelo INT,
+       @precio_nuevo BIGINT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              -- Un UPDATE sobre un id inexistente no falla, por eso se controla aca.
+              DECLARE @precio_actual BIGINT;
+              SELECT @precio_actual = precio FROM modelos WHERE id = @id_modelo;
+              IF @precio_actual IS NULL
+                     THROW 51201, 'El modelo no existe.', 1;
+              IF @precio_actual = @precio_nuevo
+                     THROW 51202, 'El precio nuevo es igual al actual.', 1;
+
+              UPDATE modelos SET precio = @precio_nuevo WHERE id = @id_modelo;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_actualizar_precio_modelo';
+              THROW;
+       END CATCH
+END;
+GO
