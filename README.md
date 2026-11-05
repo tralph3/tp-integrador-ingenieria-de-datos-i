@@ -8,11 +8,11 @@
 - [ ] Entidades dependientes
 
 ### Normalizacion
-- [ ] Dependencias funcionales
-- [ ] Claves candidatas
-- [ ] Primera forma normal
-- [ ] Segunda forma normal
-- [ ] Tercera forma normal
+- [x] Dependencias funcionales
+- [x] Claves candidatas
+- [x] Primera forma normal
+- [x] Segunda forma normal
+- [x] Tercera forma normal
 
 ### Tablas
 - [x] Definir tablas
@@ -43,21 +43,21 @@
       presentada, tablas involucradas y el motivo de su utilizacion.
 
 ### Stored Procedures
-- [ ] Parametros de entrada
-- [ ] Procesamiento de informacion
-- [ ] Consultas
-- [ ] Modificacion de datos
-- [ ] Validaciones
-- [ ] Manejo de errores
+- [x] Parametros de entrada
+- [x] Procesamiento de informacion
+- [x] Consultas
+- [x] Modificacion de datos
+- [x] Validaciones
+- [x] Manejo de errores
 
 ### Triggers
 Realizar triggers y documentar:
 
-- [ ] Evento que lo dispara
-- [ ] Tabla sobre la cual actua
-- [ ] Condicion
-- [ ] Accion realizada
-- [ ] Regla de negocio que lo implementa
+- [x] Evento que lo dispara
+- [x] Tabla sobre la cual actua
+- [x] Condicion
+- [x] Accion realizada
+- [x] Regla de negocio que lo implementa
 
 Debe haber una **justificacion funcional**.
 
@@ -83,12 +83,12 @@ Debe haber manejo de errores **dentro de la capa de
 datos**. Identificar situaciones de error e implementar mecanismos
 para tratarlas.
 
-- [ ] Datos invalidos
-- [ ] Violaciones de restricciones
-- [ ] Registros inexistentes
-- [ ] Parametros incorrectos
-- [ ] Operaciones no permitidas
-- [ ] Errores durante transacciones
+- [x] Datos invalidos
+- [x] Violaciones de restricciones
+- [x] Registros inexistentes
+- [x] Parametros incorrectos
+- [x] Operaciones no permitidas
+- [x] Errores durante transacciones
 
 ### Seguridad
 Analizar y documentar el estado de la seguridad de la base de datos:
