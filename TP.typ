@@ -1347,7 +1347,117 @@ EXEC sp_liquidar_comisiones;
 ```
 
 = Funciones
-_Placeholder: objetivo, parámetros, tipo de retorno, lógica y ejemplo._
+Las funciones reúnen en un solo lugar cálculos que varios objetos de la base necesitan. Las escalares se llaman con el esquema, por ejemplo `dbo.fn_comision(...)`, y los montos van siempre en centavos.
+
+== `fn_saldo_pendiente`
+Devuelve cuánto le falta pagar al cliente de una venta. Recibe el id de la venta (`INT`) y devuelve un `BIGINT` con la suma de las cuotas que todavía no tienen `fecha_pago`. Si la venta no tiene cuotas (porque no fue a crédito) o ya están todas pagas, devuelve 0. Eso significa que no distingue una venta sin cuotas de una saldada, y por eso `sp_liquidar_comisiones`, que la usa para decidir si liquida una comisión, comprueba aparte que las cuotas existan.
+
+```sql
+CREATE OR ALTER FUNCTION fn_saldo_pendiente (@id_venta INT)
+RETURNS BIGINT
+AS
+BEGIN
+       RETURN (
+              SELECT ISNULL(SUM(monto), 0)
+              FROM cuotas
+              WHERE id_venta = @id_venta
+                AND fecha_pago IS NULL
+       );
+END;
+```
+
+*Ejemplo*
+```sql
+SELECT dbo.fn_saldo_pendiente(4) AS saldo;
+```
+
+== `fn_service_vigente`
+Indica si una fecha cae dentro del plazo de service de una venta. Recibe el id de la venta (`INT`) y la fecha a evaluar (`DATE`), y devuelve un `BIT`: 1 si la fecha está entre la fecha de venta y esa fecha más los `meses_service` pactados, 0 si no, y `NULL` si la venta no existe. Esta regla antes estaba escrita dentro de `trg_service_vigencia`, que ahora la consulta acá. También sirve para saber si un cliente todavía tiene service vigente.
+
+```sql
+CREATE OR ALTER FUNCTION fn_service_vigente (@id_venta INT, @fecha DATE)
+RETURNS BIT
+AS
+BEGIN
+       RETURN (
+              SELECT CASE WHEN @fecha BETWEEN v.fecha AND DATEADD(MONTH, v.meses_service, v.fecha)
+                          THEN 1 ELSE 0 END
+              FROM ventas v
+              WHERE v.id = @id_venta
+       );
+END;
+```
+
+*Ejemplo*
+```sql
+SELECT dbo.fn_service_vigente(1, GETDATE()) AS vigente;
+```
+
+== `fn_comision`
+Calcula la comisión de una venta, el 2% del precio. Recibe el precio en centavos (`BIGINT`) y devuelve otro `BIGINT`. La cuenta es `precio * 2 / 100`, con la multiplicación primero porque `2 / 100` es una división entera y da 0, y la comisión saldría siempre nula. Al truncar solo se pierde la fracción de centavo. La usa `trg_ventas_comision`, así que si cambia el porcentaje alcanza con modificar esta función.
+
+```sql
+CREATE OR ALTER FUNCTION fn_comision (@precio BIGINT)
+RETURNS BIGINT
+AS
+BEGIN
+       RETURN @precio * 2 / 100;
+END;
+```
+
+*Ejemplo*
+```sql
+SELECT dbo.fn_comision(6500000000) AS comision;
+```
+
+== `fn_formatear_monto`
+Pasa un monto en centavos a un texto visible para los reportes, separando los miles con puntos y los decimales con una coma. Recibe los centavos (`BIGINT`) y devuelve un `VARCHAR(40)`. Por ejemplo, 6500000000 queda como `$ 65.000.000,00`. Asume montos positivos, que es lo que permiten los `CHECK` de las tablas.
+
+```sql
+CREATE OR ALTER FUNCTION fn_formatear_monto (@centavos BIGINT)
+RETURNS VARCHAR(40)
+AS
+BEGIN
+       RETURN '$ ' + FORMAT(@centavos / 100, 'N0', 'es-AR')
+              + ',' + RIGHT('0' + CAST(@centavos % 100 AS VARCHAR(2)), 2);
+END;
+```
+
+*Ejemplo*
+```sql
+SELECT dbo.fn_formatear_monto(6500000000) AS monto;
+```
+
+== `fn_ventas_vendedor`
+Devuelve las ventas de un vendedor en un período. Recibe el id del vendedor (`INT`) y las fechas desde y hasta (`DATE`), y devuelve una tabla con los datos de cada venta: cliente, modelo, precio y comisión. Para armarla cruza `ventas` con `clientes`, `vehiculos`, `modelos` y `marcas`, y une `comisiones` con `LEFT JOIN` para que una venta sin comisión no desaparezca. Es una función de tabla en línea: tiene un solo `SELECT` y se usa en el `FROM`, casi como una vista con parámetros.
+
+```sql
+CREATE OR ALTER FUNCTION fn_ventas_vendedor (@id_vendedor INT, @desde DATE, @hasta DATE)
+RETURNS TABLE
+AS
+RETURN (
+       SELECT v.id AS id_venta,
+              v.fecha,
+              c.nombre_completo AS cliente,
+              ma.nombre AS marca,
+              mo.modelo,
+              v.precio,
+              co.monto AS comision
+       FROM ventas v
+       JOIN clientes c ON c.id = v.id_cliente
+       JOIN vehiculos ve ON ve.id = v.id_vehiculo
+       JOIN modelos mo ON mo.id = ve.id_modelo
+       JOIN marcas ma ON ma.id = mo.id_marca
+       LEFT JOIN comisiones co ON co.id_venta = v.id
+       WHERE v.id_vendedor = @id_vendedor
+         AND v.fecha BETWEEN @desde AND @hasta
+);
+```
+
+*Ejemplo*
+```sql
+SELECT * FROM dbo.fn_ventas_vendedor(1, '2025-01-01', '2025-12-31');
+```
 
 = Manejo de errores
 _Placeholder._

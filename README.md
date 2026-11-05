@@ -72,11 +72,11 @@ Utilizar cursores y documentar:
 ### Funciones
 Desarrollar funciones y documentar:
 
-- [ ] Objetivo
-- [ ] Parametros
-- [ ] Tipo de retorno
-- [ ] Logica implementada
-- [ ] Ejemplo de utilizacion
+- [x] Objetivo
+- [x] Parametros
+- [x] Tipo de retorno
+- [x] Logica implementada
+- [x] Ejemplo de utilizacion
 
 ### Manejo de errores
 Debe haber manejo de errores **dentro de la capa de
