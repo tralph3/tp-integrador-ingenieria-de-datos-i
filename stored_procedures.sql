@@ -14,7 +14,8 @@ GO
 
 -- sp_registrar_venta: registra la venta y marca el vehiculo como vendido.
 -- La comision la genera el trigger de ventas. Si es a credito, las cuotas
--- se generan despues con sp_generar_cuotas.
+-- se generan despues con sp_generar_cuotas. La fecha es la de hoy, salvo que se
+-- indique otra.
 CREATE OR ALTER PROCEDURE sp_registrar_venta
        @id_cliente INT,
        @id_vendedor INT,
@@ -24,17 +25,20 @@ CREATE OR ALTER PROCEDURE sp_registrar_venta
        @medio_pago VARCHAR(30),
        @patente VARCHAR(20),
        @meses_service INT = 6,
+       @fecha DATE = NULL,
        @id_venta INT OUTPUT
 AS
 BEGIN
        SET NOCOUNT ON;
        BEGIN TRY
+              SET @fecha = ISNULL(@fecha, CAST(GETDATE() AS DATE));
+
               IF @patente IS NULL
                      THROW 51001, 'Se debe indicar la patente con la que se vende el vehiculo.', 1;
 
               DECLARE @nacimiento DATE;
               SELECT @nacimiento = fecha_nacimiento FROM clientes WHERE id = @id_cliente;
-              IF DATEADD(YEAR, 18, @nacimiento) > CAST(GETDATE() AS DATE)
+              IF DATEADD(YEAR, 18, @nacimiento) > @fecha
                      THROW 51002, 'El cliente debe ser mayor de 18 anios.', 1;
 
               IF NOT EXISTS (SELECT 1 FROM empleados WHERE id = @id_vendedor AND tipo = 'vendedor' AND estado = 'activo')
@@ -47,8 +51,8 @@ BEGIN
               IF @estado != 'disponible'
                      THROW 51004, 'El vehiculo no esta disponible para la venta.', 1;
 
-              INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, precio, medio_pago, meses_service)
-              VALUES (@id_cliente, @id_vendedor, @id_vehiculo, @id_plataforma, @precio, @medio_pago, @meses_service);
+              INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, fecha, precio, medio_pago, meses_service)
+              VALUES (@id_cliente, @id_vendedor, @id_vehiculo, @id_plataforma, @fecha, @precio, @medio_pago, @meses_service);
               SET @id_venta = SCOPE_IDENTITY();
 
               UPDATE vehiculos
