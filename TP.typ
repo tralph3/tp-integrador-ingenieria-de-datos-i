@@ -867,7 +867,175 @@ EXEC sp_actualizar_precio_modelo @id_modelo = 1, @precio_nuevo = 6800000000;
 ```
 
 = Triggers
-_Placeholder: evento, tabla, condición, acción y regla de negocio._
+Implementamos los siguientes triggers para aplicar automáticamente reglas que una constraint no puede expresar, casi siempre porque hay que mirar otra tabla, y para generar datos derivados que no queremos depender de que alguien cargue a mano. Los que validan deshacen la operación con `ROLLBACK` y lanzan un error con `THROW`, y cada uno tiene su propio número de error.
+
+== `trg_cuotas_solo_credito`
+Se dispara con un `INSERT` o `UPDATE` sobre `cuotas`. Si la venta de alguna de las cuotas tiene un medio de pago distinto de crédito, deshace la operación y lanza el error 50001. Implementa la regla de que solo las ventas a crédito tienen cuotas. Hace falta un trigger porque la condición depende de `ventas`, y un `CHECK` no puede mirar otra tabla.
+
+```sql
+CREATE TRIGGER trg_cuotas_solo_credito
+ON cuotas
+AFTER INSERT, UPDATE
+AS
+BEGIN
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN ventas v ON v.id = i.id_venta
+              WHERE v.medio_pago != 'credito'
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50001, 'Solo las ventas a credito pueden tener cuotas.', 1;
+       END
+END;
+```
+
+== `trg_ventas_validar`
+Se dispara con un `INSERT` sobre `ventas` y controla tres reglas. El cliente tiene que ser mayor de 18 años a la fecha de la venta (error 50002), el vendedor tiene que ser un empleado activo de tipo vendedor (50003) y el vehículo tiene que estar disponible (50004). Si alguna falla, deshace la venta. Si todas se cumplen, pasa el vehículo a `vendido`.
+
+Las tres reglas cruzan `ventas` con `clientes`, `empleados` y `vehiculos`, por eso van en un trigger. Cambiar el estado en el mismo lugar evita que un vehículo vendido siga figurando como disponible, sin importar por dónde se cargue la venta. Este trigger tiene prioridad sobre los demás de `ventas` con `sp_settriggerorder`, así una venta inválida no genera comisión.
+
+```sql
+CREATE OR ALTER TRIGGER trg_ventas_validar
+ON ventas
+AFTER INSERT
+AS
+BEGIN
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN clientes c ON c.id = i.id_cliente
+              WHERE DATEADD(YEAR, 18, c.fecha_nacimiento) > i.fecha
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50002, 'El cliente debe ser mayor de 18 anios.', 1;
+       END
+
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN empleados e ON e.id = i.id_vendedor
+              WHERE e.tipo != 'vendedor' OR e.estado != 'activo'
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50003, 'Solo un empleado activo de tipo vendedor puede registrar ventas.', 1;
+       END
+
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN vehiculos v ON v.id = i.id_vehiculo
+              WHERE v.estado != 'disponible'
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50004, 'El vehiculo no esta disponible para la venta.', 1;
+       END
+
+       UPDATE v
+       SET v.estado = 'vendido'
+       FROM vehiculos v
+       JOIN inserted i ON i.id_vehiculo = v.id;
+END;
+
+-- Tiene que correr antes que los otros triggers de ventas: si la venta es
+-- invalida, ninguno de los demas debe llegar a ejecutarse.
+EXEC sp_settriggerorder @triggername = 'trg_ventas_validar', @order = 'First', @stmttype = 'INSERT';
+```
+
+== `trg_ventas_comision`
+Se dispara con un `INSERT` sobre `ventas`, sin condición: por cada venta nueva inserta en `comisiones` el 2% del precio, pendiente de liquidar. Implementa la regla de que cada venta genera una comisión para el vendedor. Se justifica porque así ninguna venta puede quedar sin comisión, aunque se cargue sin pasar por el procedimiento de venta.
+
+```sql
+CREATE OR ALTER TRIGGER trg_ventas_comision
+ON ventas
+AFTER INSERT
+AS
+BEGIN
+       INSERT INTO comisiones (id_venta, monto)
+       SELECT i.id, i.precio * (2 / 100)
+       FROM inserted i;
+END;
+```
+
+== `trg_modelos_historial_precios`
+Se dispara con un `UPDATE` sobre `modelos`, y solo actúa si cambió el precio. En ese caso inserta en `historial_precios` el precio anterior y el nuevo, y el usuario y la fecha se completan solos. Implementa la regla de que todo cambio del precio de lista queda registrado. Las ventas guardan el precio al que se vendió, pero sin este trigger no se sabría cuándo ni quién modificó el precio de lista.
+
+```sql
+CREATE OR ALTER TRIGGER trg_modelos_historial_precios
+ON modelos
+AFTER UPDATE
+AS
+BEGIN
+       IF UPDATE(precio)
+       BEGIN
+              INSERT INTO historial_precios (id_modelo, precio_anterior, precio_nuevo)
+              SELECT d.id, d.precio, i.precio
+              FROM inserted i
+              JOIN deleted d ON d.id = i.id
+              WHERE d.precio != i.precio;
+       END
+END;
+```
+
+== `trg_service_vigencia`
+Se dispara con un `INSERT` o `UPDATE` sobre `service`. Si la fecha del service es anterior a la venta o posterior a la fecha de venta más los `meses_service` pactados, deshace la operación y lanza el error 50006. Implementa la regla de que el service gratuito solo se puede usar dentro del plazo de vigencia. Como el plazo es distinto en cada venta, hay que consultar `ventas`, y por eso no alcanza con un `CHECK`.
+
+```sql
+CREATE OR ALTER TRIGGER trg_service_vigencia
+ON service
+AFTER INSERT, UPDATE
+AS
+BEGIN
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN ventas v ON v.id = i.id_venta
+              WHERE i.fecha < v.fecha
+                 OR i.fecha > DATEADD(MONTH, v.meses_service, v.fecha)
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50006, 'La fecha del service esta fuera del plazo de vigencia.', 1;
+       END
+END;
+```
+
+== `trg_registro_runa_cliente`
+Se dispara con un `INSERT` o `UPDATE` sobre `registro_runa`. Rechaza el registro si el vehículo no tiene una venta (error 50007) o si el cliente no es el comprador de esa venta (50008). Implementa la regla de que el vehículo se registra en el RUNA a nombre del cliente que lo compró. Se justifica porque registrarlo a nombre de otra persona sería un error de datos con consecuencias legales, y verificarlo requiere cruzar con `ventas`.
+
+```sql
+CREATE OR ALTER TRIGGER trg_registro_runa_cliente
+ON registro_runa
+AFTER INSERT, UPDATE
+AS
+BEGIN
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              LEFT JOIN ventas v ON v.id_vehiculo = i.id_vehiculo
+              WHERE v.id IS NULL
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50007, 'No se puede registrar en el RUNA un vehiculo que no fue vendido.', 1;
+       END
+
+       IF EXISTS (
+              SELECT 1
+              FROM inserted i
+              JOIN ventas v ON v.id_vehiculo = i.id_vehiculo
+              WHERE v.id_cliente != i.id_cliente
+       )
+       BEGIN
+              ROLLBACK TRANSACTION;
+              THROW 50008, 'El cliente del registro RUNA debe ser el comprador del vehiculo.', 1;
+       END
+END;
+```
 
 = Cursores
 _Placeholder: problema, motivo, registros procesados y operación por registro._
