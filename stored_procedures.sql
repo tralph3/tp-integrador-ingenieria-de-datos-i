@@ -64,3 +64,72 @@ BEGIN
        END CATCH
 END;
 GO
+
+-- sp_generar_cuotas: reparte el precio de una venta a credito en cuotas
+-- mensuales iguales. La ultima cuota absorbe el resto de la division.
+CREATE OR ALTER PROCEDURE sp_generar_cuotas
+       @id_venta INT,
+       @cantidad INT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              IF @cantidad IS NULL OR @cantidad < 1 OR @cantidad > 120
+                     THROW 51101, 'La cantidad de cuotas debe estar entre 1 y 120.', 1;
+
+              DECLARE @precio BIGINT, @fecha DATE;
+              SELECT @precio = precio, @fecha = fecha
+              FROM ventas WHERE id = @id_venta;
+
+              DECLARE @monto BIGINT = @precio / @cantidad;
+
+              BEGIN TRANSACTION;
+
+              WITH n AS (
+                     SELECT 1 AS nro
+                     UNION ALL
+                     SELECT nro + 1 FROM n WHERE nro < @cantidad
+              )
+              INSERT INTO cuotas (id_venta, nro_cuota, monto, vencimiento)
+              SELECT @id_venta,
+                     nro,
+                     CASE WHEN nro = @cantidad THEN @precio - @monto * (@cantidad - 1) ELSE @monto END,
+                     DATEADD(MONTH, nro, @fecha)
+              FROM n
+              OPTION (MAXRECURSION 120);
+
+              COMMIT TRANSACTION;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_generar_cuotas';
+              THROW;
+       END CATCH
+END;
+GO
+
+-- sp_actualizar_precio_modelo: cambia el precio de lista de un modelo.
+CREATE OR ALTER PROCEDURE sp_actualizar_precio_modelo
+       @id_modelo INT,
+       @precio_nuevo BIGINT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              -- Un UPDATE sobre un id inexistente no falla, por eso se controla aca.
+              DECLARE @precio_actual BIGINT;
+              SELECT @precio_actual = precio FROM modelos WHERE id = @id_modelo;
+              IF @precio_actual IS NULL
+                     THROW 51201, 'El modelo no existe.', 1;
+              IF @precio_actual = @precio_nuevo
+                     THROW 51202, 'El precio nuevo es igual al actual.', 1;
+
+              UPDATE modelos SET precio = @precio_nuevo WHERE id = @id_modelo;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_actualizar_precio_modelo';
+              THROW;
+       END CATCH
+END;
+GO
