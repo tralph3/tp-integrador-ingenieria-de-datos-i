@@ -39,7 +39,7 @@
       adecuada para resolver la problematica.
 
 ### Vistas
-- [ ] Realizar vistas y documentar su objetivo, informacion
+- [x] Realizar vistas y documentar su objetivo, informacion
       presentada, tablas involucradas y el motivo de su utilizacion.
 
 ### Stored Procedures
