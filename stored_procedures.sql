@@ -1,5 +1,47 @@
 GO -- iniciar nuevo lote
 
+-- sp_registrar_cliente: da de alta un cliente y devuelve su id en @id_cliente.
+-- Un menor se puede registrar: la edad se valida recien al vender. El DNI o el
+-- email repetidos los frena el UNIQUE de clientes.
+CREATE OR ALTER PROCEDURE sp_registrar_cliente
+       @nombre_completo VARCHAR(255),
+       @dni VARCHAR(20),
+       @fecha_nacimiento DATE,
+       @email VARCHAR(50),
+       @telefono VARCHAR(30) = NULL,
+       @id_cliente INT OUTPUT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              SET @nombre_completo = LTRIM(RTRIM(@nombre_completo));
+              SET @dni = LTRIM(RTRIM(@dni));
+              SET @email = LTRIM(RTRIM(@email));
+              SET @telefono = NULLIF(LTRIM(RTRIM(@telefono)), '');
+ 
+              IF @nombre_completo = '' OR @dni = '' OR @email = ''
+                     THROW 51501, 'El nombre, el DNI y el email no pueden estar vacios.', 1;
+ 
+              IF @email NOT LIKE '%_@_%._%' OR @email LIKE '% %'
+                     THROW 51502, 'El email no tiene un formato valido.', 1;
+ 
+              BEGIN TRANSACTION;
+ 
+              INSERT INTO clientes (nombre_completo, dni, fecha_nacimiento, email, telefono)
+              VALUES (@nombre_completo, @dni, @fecha_nacimiento, @email, @telefono);
+              SET @id_cliente = SCOPE_IDENTITY();
+ 
+              COMMIT TRANSACTION;
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_registrar_cliente';
+              THROW;
+       END CATCH
+END;
+GO
+
+
 -- sp_log_error: guarda en log_errores el error del CATCH que la llama.
 CREATE OR ALTER PROCEDURE sp_log_error
        @procedimiento VARCHAR(100)
