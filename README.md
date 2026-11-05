@@ -64,10 +64,10 @@ Debe haber una **justificacion funcional**.
 ### Cursores
 Utilizar cursores y documentar:
 
-- [ ] Problema que se desea resolver
-- [ ] Motivo por el cual se utiliza el cursor
-- [ ] Registros procesados
-- [ ] Operacion realizada sobre cada registro
+- [x] Problema que se desea resolver
+- [x] Motivo por el cual se utiliza el cursor
+- [x] Registros procesados
+- [x] Operacion realizada sobre cada registro
 
 ### Funciones
 Desarrollar funciones y documentar:
