@@ -1106,7 +1106,7 @@ EXEC sp_settriggerorder @triggername = 'trg_ventas_validar', @order = 'First', @
 ```
 
 == `trg_ventas_comision`
-Se dispara con un `INSERT` sobre `ventas`, sin condición: por cada venta nueva inserta en `comisiones` el 2% del precio, pendiente de liquidar. Implementa la regla de que cada venta genera una comisión para el vendedor. Se justifica porque así ninguna venta puede quedar sin comisión, aunque se cargue sin pasar por el procedimiento de venta.
+Se dispara con un `INSERT` sobre `ventas`, sin condición: por cada venta nueva inserta en `comisiones` el 2% del precio (calculado con `fn_comision`), pendiente de liquidar. Implementa la regla de que cada venta genera una comisión para el vendedor. Se justifica porque así ninguna venta puede quedar sin comisión, aunque se cargue sin pasar por el procedimiento de venta.
 
 ```sql
 CREATE OR ALTER TRIGGER trg_ventas_comision
@@ -1115,7 +1115,7 @@ AFTER INSERT
 AS
 BEGIN
        INSERT INTO comisiones (id_venta, monto)
-       SELECT i.id, i.precio * (2 / 100)
+       SELECT i.id, dbo.fn_comision(i.precio)
        FROM inserted i;
 END;
 ```
@@ -1141,7 +1141,7 @@ END;
 ```
 
 == `trg_service_vigencia`
-Se dispara con un `INSERT` o `UPDATE` sobre `service`. Si la fecha del service es anterior a la venta o posterior a la fecha de venta más los `meses_service` pactados, deshace la operación y lanza el error 50006. Implementa la regla de que el service gratuito solo se puede usar dentro del plazo de vigencia. Como el plazo es distinto en cada venta, hay que consultar `ventas`, y por eso no alcanza con un `CHECK`.
+Se dispara con un `INSERT` o `UPDATE` sobre `service`. Si `fn_service_vigente` indica que la fecha del service no está dentro del plazo (anterior a la venta o posterior a la fecha de venta más los `meses_service` pactados), deshace la operación y lanza el error 50006. Implementa la regla de que el service gratuito solo se puede usar dentro del plazo de vigencia. Como el plazo es distinto en cada venta, hay que consultar `ventas`, y por eso no alcanza con un `CHECK`.
 
 ```sql
 CREATE OR ALTER TRIGGER trg_service_vigencia
@@ -1152,9 +1152,7 @@ BEGIN
        IF EXISTS (
               SELECT 1
               FROM inserted i
-              JOIN ventas v ON v.id = i.id_venta
-              WHERE i.fecha < v.fecha
-                 OR i.fecha > DATEADD(MONTH, v.meses_service, v.fecha)
+              WHERE dbo.fn_service_vigente(i.id_venta, i.fecha) = 0
        )
        BEGIN
               ROLLBACK TRANSACTION;
@@ -1271,7 +1269,7 @@ EXEC sp_aumentar_precios_marca @id_marca = 1, @porcentaje = 5;
 
 *Registros procesados:* Las comisiones con fecha_liquidacion nula, junto con el medio de pago de la venta asociada (tablas comisiones y ventas), ordenadas por id.
 
-*Operación realizada sobre cada registro:* Se bloquea la comisión y se verifica que siga pendiente; si la venta es a crédito, se verifica que tenga cuotas y que todas estén pagas. Si se cumple, se asigna la fecha actual a fecha_liquidacion y se confirma la transacción. Si no, se deshace, se registra el error y se cuenta la comisión como rechazada. Al finalizar se informa cuántas comisiones se liquidaron y cuántas se rechazaron.
+*Operación realizada sobre cada registro:* Se bloquea la comisión y se verifica que siga pendiente; si la venta es a crédito, se verifica que tenga cuotas y que `fn_saldo_pendiente` sea cero. Si se cumple, se asigna la fecha actual a fecha_liquidacion y se confirma la transacción. Si no, se deshace, se registra el error y se cuenta la comisión como rechazada. Al finalizar se informa cuántas comisiones se liquidaron y cuántas se rechazaron.
 
 ```sql
 CREATE OR ALTER PROCEDURE sp_liquidar_comisiones
@@ -1310,7 +1308,7 @@ BEGIN
 
                             IF @medio_pago = 'credito'
                                AND (NOT EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta)
-                                    OR EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta AND fecha_pago IS NULL))
+                                    OR dbo.fn_saldo_pendiente(@id_venta) > 0)
                             BEGIN
                                    SET @msg = CONCAT('Comision ', @id_comision, ': la venta a credito tiene cuotas sin pagar.');
                                    THROW 51402, @msg, 1;

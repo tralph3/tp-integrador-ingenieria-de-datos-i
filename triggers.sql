@@ -76,14 +76,14 @@ GO
 
 
 -- trg_ventas_comision: genera la comision de cada venta nueva, equivalente al
--- 2% del precio de venta.
+-- 2% del precio de venta, calculado con fn_comision.
 CREATE OR ALTER TRIGGER trg_ventas_comision
 ON ventas
 AFTER INSERT
 AS
 BEGIN
        INSERT INTO comisiones (id_venta, monto)
-       SELECT i.id, i.precio * (2 / 100)
+       SELECT i.id, dbo.fn_comision(i.precio)
        FROM inserted i;
 END;
 GO
@@ -109,7 +109,8 @@ GO
 
 
 -- trg_service_vigencia: el service gratuito solo se puede registrar dentro de
--- los meses de service pactados en la venta, contados desde la fecha de venta.
+-- los meses de service pactados en la venta, contados desde la fecha de venta
+-- (lo resuelve fn_service_vigente).
 CREATE OR ALTER TRIGGER trg_service_vigencia
 ON service
 AFTER INSERT, UPDATE
@@ -118,9 +119,7 @@ BEGIN
        IF EXISTS (
               SELECT 1
               FROM inserted i
-              JOIN ventas v ON v.id = i.id_venta
-              WHERE i.fecha < v.fecha
-                 OR i.fecha > DATEADD(MONTH, v.meses_service, v.fecha)
+              WHERE dbo.fn_service_vigente(i.id_venta, i.fecha) = 0
        )
        BEGIN
               ROLLBACK TRANSACTION;

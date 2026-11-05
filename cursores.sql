@@ -89,7 +89,7 @@ BEGIN
 
                             IF @medio_pago = 'credito'
                                AND (NOT EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta)
-                                    OR EXISTS (SELECT 1 FROM cuotas WHERE id_venta = @id_venta AND fecha_pago IS NULL))
+                                    OR dbo.fn_saldo_pendiente(@id_venta) > 0)
                             BEGIN
                                    SET @msg = CONCAT('Comision ', @id_comision, ': la venta a credito tiene cuotas sin pagar.');
                                    THROW 51402, @msg, 1;
@@ -119,4 +119,4 @@ BEGIN
               EXEC sp_log_error 'sp_liquidar_comisiones';
               THROW;
        END CATCH
-END;
+END;
