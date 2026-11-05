@@ -744,7 +744,7 @@ BEGIN
 
               DECLARE @estado VARCHAR(20);
               SELECT @estado = estado FROM vehiculos WITH (UPDLOCK) WHERE id = @id_vehiculo;
-              IF @estado <> 'disponible'
+              IF @estado != 'disponible'
                      THROW 51004, 'El vehiculo no esta disponible para la venta.', 1;
 
               INSERT INTO ventas (id_cliente, id_vendedor, id_vehiculo, id_plataforma, precio, medio_pago, meses_service)
