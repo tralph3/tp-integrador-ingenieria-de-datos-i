@@ -22,46 +22,52 @@
 )
 
 // ---------------------------------------------------------------- Carátula
-#page(numbering: none)[
+#page(numbering: none, margin: (top: 2cm, bottom: 2.2cm, x: 2.5cm))[
   #align(center)[
-    #v(1fr)
-    #text(size: 14pt)[Universidad Argentina de la Empresa (UADE)] \
-    #text(size: 12pt)[Ingeniería de Datos 1 · 2do Cuatrimestre 2026]
+    #image("uade.jpg", width: 9cm, height: 5cm, fit: "cover")
 
-    #v(2cm)
-    #text(size: 24pt, weight: "bold")[Trabajo Práctico Integrador] \
-    #v(0.3cm)
-    #text(size: 16pt)[Base de Datos: Concesionaria de Automóviles]
+    #v(1.4cm)
+    #text(size: 28pt, weight: "bold")[Trabajo Práctico Integrador]
 
-    #v(2cm)
-    #line(length: 60%)
     #v(0.5cm)
+    #text(size: 18pt)[Sistema de Gestión de Concesionaria]
 
-    *Docentes* \
+    #v(1cm)
+    #text(size: 14pt)[Ingeniería de Datos I (TN)] \
+    #v(0.1cm)
+    #text(size: 12pt)[2º cuatrimestre 2026]
+
+    #v(0.7cm)
+    #text(size: 15pt, weight: "semibold")[Grupo Nº 14]
+
+    #v(1fr)
+
+    #text(size: 13pt, weight: "bold")[Integrantes]
+    #v(-0.2em)
+    #line(length: 35%, stroke: 0.5pt + luma(120))
+    #v(0.2cm)
+    #table(
+      columns: (auto, auto, auto),
+      align: (left, center, left),
+      stroke: none,
+      inset: (x: 10pt, y: 5pt),
+      table.header[*Nombre y apellido*][*Legajo*][*Rama de Git*],
+      [Tomás Ralph], [1248335], [`ralph`],
+      [Augusto Lecour], [1216511], [`lecour`],
+    )
+    #v(0.3em)
+    #text(size: 9pt, fill: luma(90))[Repositorio: `https://github.com/tralph3/tp-integrador-ingenieria-de-datos-i`]
+
+    #v(1.2cm)
+    #text(size: 13pt, weight: "bold")[Docentes]
+    #v(-0.2em)
+    #line(length: 35%, stroke: 0.5pt + luma(120))
+    #v(0.2cm)
     Lic. Gustavo E. Escandell \
     Ing. Melinda Selles
 
-    #v(1cm)
-    *Grupo:* Nº 14
-
-    #v(2cm)
-    *Integrantes*
-
-    #table(
-        columns: (1fr, 1.5fr, auto),
-        align: (left, center, left),
-        stroke: 0pt,
-        inset: 7pt,
-        table.header[*Nombre y apellido*][*Legajo*][*Rama de Git*],
-        [Tomás Ralph], [1248335], [`ralph`],
-        [Augusto Lecour], [1216511], [`lecour`],
-    )
-
-    #v(1em)
-    *Repositorio:* `https://github.com/tralph3/tp-integrador-ingenieria-de-datos-i`
-
     #v(1fr)
-    Fecha de entrega: 5 de noviembre de 2026
+    #text(size: 12pt)[*Fecha de entrega:* 5 de noviembre de 2026]
   ]
 ]
 
@@ -2047,7 +2053,33 @@ REVERT;
 Marketing puede leer el catálogo, pero su consulta sobre `clientes` falla con el error 229 (permiso denegado). El vendedor recibe el DNI, el email y el teléfono enmascarados.
 
 = Centralización de la lógica en la capa de datos
-_Placeholder._
+Las validaciones, las reglas de negocio y las operaciones sobre los datos están dentro de la base y no en una aplicación que se conecte a ella. Cada tipo de lógica usa el mecanismo que el motor ofrece para eso.
+
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Lógica*][*Mecanismo*][*Qué resuelve*],
+    [Validaciones de datos], [`CHECK`, `UNIQUE`, claves foráneas y `NOT NULL`], [Precios positivos, DNI y email únicos, medios de pago y estados válidos, fechas no futuras.],
+    [Reglas entre tablas], [Triggers], [Cliente mayor de edad, vendedor activo, vehículo disponible, cuotas solo a crédito, service dentro del plazo, RUNA a nombre del comprador, comisión de cada venta e historial de precios.],
+    [Operaciones sobre los datos], [Stored procedures y cursores], [Alta de clientes y ventas, generación de cuotas, cambio de precios y liquidación de comisiones.],
+    [Cálculos], [Funciones], [Saldo pendiente, vigencia del service, comisión, formato de montos y ventas por vendedor.],
+    [Consultas frecuentes], [Vistas], [Stock disponible, catálogo, cuotas pendientes y service programados.],
+    [Acceso], [Roles y permisos], [Cada rol opera a través de vistas y procedimientos, sin escribir directo en las tablas.],
+    [Errores], [`TRY/CATCH` y `log_errores`], [Deshacer lo que falló y dejar el error registrado.],
+  )
+}
+
+Registrar una venta muestra cómo trabajan juntos. El procedimiento valida los parámetros y abre la transacción, las constraints de `ventas` revisan el precio, el medio de pago y la fecha, un trigger comprueba la edad, el vendedor y la disponibilidad del vehículo, y otro genera la comisión. Si algo falla, el `CATCH` deshace todo y guarda el error. Quien llama solo ejecuta `sp_registrar_venta`.
+
+Como esa lógica vive en la base, no depende de cómo se cargue la información. Una inserción directa en `ventas`, sin pasar por el procedimiento, también queda sujeta a las mismas constraints y a los mismos triggers.
 
 = Conclusiones
-_Placeholder._
+El resultado es una base de datos para LeCar con 17 tablas en tercera forma normal, que reúne el stock, las ventas, las cuotas y comisiones, el registro en el RUNA y los services. Las reglas del negocio las hacen cumplir las constraints, seis triggers y siete procedimientos (dos de ellos con cursor), y los reportes salen de cuatro vistas, cinco funciones y las consultas del documento.
+
+Algunas decisiones de diseño ordenaron el resto. Los montos se guardan en centavos como enteros, para evitar los errores de redondeo de los decimales. Un vehículo tiene dos sucursales distintas, la actual y la de la entrega que lo trajo, y se modelaron por separado. Los procedimientos validan solo lo que una constraint no puede expresar, y los permisos se dan a roles que operan a través de vistas y procedimientos, sin tocar las tablas.
+
+El modelo también tiene límites. Las cuotas se generan con un procedimiento aparte y no automáticamente al registrar una venta a crédito. Los cambios de estado de un vehículo, como una reserva o el ingreso a service, no tienen procedimiento y los hace el administrador. Y los usuarios de ejemplo no tienen login, así que en un servidor real habría que asociarlos a uno.
