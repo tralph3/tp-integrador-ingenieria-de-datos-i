@@ -49,6 +49,7 @@ BEGIN
               THROW;
        END CATCH
 END;
+GO
 
 -- sp_liquidar_comisiones: liquida las comisiones pendientes con la fecha de hoy.
 -- Cada comision va en su propia transaccion: si una se rechaza, se guarda el
@@ -119,4 +120,5 @@ BEGIN
               EXEC sp_log_error 'sp_liquidar_comisiones';
               THROW;
        END CATCH
-END;
+END;
+GO
