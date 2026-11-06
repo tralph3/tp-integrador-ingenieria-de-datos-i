@@ -74,18 +74,65 @@
 
 // --------------------------------------------------------------- Contenido
 = Descripción del sistema
-Descripción general de la concesionaria y del problema que resuelve la base
-de datos. _Placeholder._
+LeCar es una concesionaria de automóviles que recibe vehículos de sus proveedores y los vende a sus clientes a través de varias sucursales. La venta no termina cuando el cliente se lleva el auto: incluye el cobro, que puede ser en cuotas, el registro del vehículo a nombre del comprador y un período de service gratuito.
+
+El sistema reúne la información del negocio en una única base de datos. Guarda el stock, las ventas con sus cuotas y comisiones, el registro de cada vehículo en el RUNA y los services, y hace cumplir las reglas del negocio dentro de la propia base, sin depender de quien la use.
 
 = Universo del Discurso
 == Contexto del sistema
-_Placeholder._
+Las sucursales de LeCar reciben los vehículos de los proveedores y los venden por distintos canales, de los que la base registra uno por venta (por ejemplo presencial, sitio web o WhatsApp). Cada venta se puede pagar en efectivo, por transferencia, con débito o a crédito, y las ventas a crédito se financian en cuotas mensuales.
+
+El problema es la falta de un registro centralizado. Sin él, saber qué hay disponible en cada sucursal, qué vendió cada vendedor o qué clientes deben cuotas obliga a juntar datos de distintos lugares, y las reglas del negocio dependen de que cada persona las recuerde.
+
 == Objetivo de la base de datos
-_Placeholder._
+Reunir en un solo lugar toda la información de la concesionaria para consultarla con facilidad y agilizar los informes: reportes de ventas, stock por sucursal y validez del service de cada vehículo vendido. La base también tiene que hacer cumplir por sí misma las reglas del negocio, como quién puede vender o cuándo corresponde un service, para que no dependan de que cada persona las recuerde.
+
 == Actores involucrados
-_Placeholder._
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Actor*][*Qué hace*],
+    [Clientes], [Compran los vehículos. El vehículo se registra a su nombre en el RUNA.],
+    [Empleados], [Cada uno pertenece a una sucursal y tiene un tipo: vendedor, gerente, contador, marketing o limpieza. Solo los vendedores activos registran ventas.],
+    [Sucursales], [Reciben las entregas de los proveedores, guardan el stock y venden.],
+    [Proveedores], [Entregan los vehículos a las sucursales.],
+    [Marcas y modelos], [Forman el catálogo de lo que se comercializa, con su precio de lista.],
+    [Plataformas], [Son los canales por los que se concreta una venta.],
+    [Talleres], [Realizan los services gratuitos de los vehículos vendidos.],
+  )
+}
+
+== Información que se necesita almacenar
+- *Stock:* cada vehículo, con su modelo, su sucursal actual, su color y su estado (disponible, reservado, vendido o en service).
+- *Catálogo:* marcas y modelos, con el precio de lista y el historial de cambios de precio.
+- *Abastecimiento:* las entregas de cada proveedor a una sucursal.
+- *Personas:* clientes y empleados, con el tipo, el estado y la sucursal de cada empleado.
+- *Ventas:* vendedor, cliente, vehículo, canal, precio, medio de pago y meses de service pactados, con las cuotas si es a crédito y la comisión del vendedor.
+- *Postventa:* los services realizados en talleres y el registro del vehículo en el RUNA.
+- *Control:* los errores que detecta el sistema.
+
 == Procesos principales
-_Placeholder._
++ Entrega de vehículos: un proveedor entrega vehículos a una sucursal y quedan disponibles para la venta.
++ Venta: un vendedor activo registra la venta de un vehículo disponible a un cliente mayor de edad. El vehículo pasa a vendido con su patente y se genera la comisión del vendedor. Si es a crédito, se reparte el precio en cuotas mensuales.
++ Cobro y comisiones: se registran los pagos de las cuotas y se liquidan las comisiones de los vendedores. En las ventas a crédito la comisión se liquida solo cuando el cliente terminó de pagar.
++ Registro en el RUNA: el vehículo vendido se registra a nombre del cliente que lo compró.
++ Service: el cliente tiene derecho a service gratuito durante los meses pactados en su venta, y la fecha de cada service tiene que caer dentro de ese plazo.
++ Actualización de precios: el precio de lista de un modelo se modifica y el cambio queda guardado en un historial.
+
+== Restricciones del sistema
+- Solo los empleados de tipo vendedor, y en estado activo, pueden registrar ventas.
+- No se puede vender un vehículo que no esté disponible.
+- El sistema no realiza transferencias bancarias ni almacena cuentas o credenciales bancarias de los clientes.
+- No gestiona la distribución de vehículos por parte de los proveedores, la logística de entrega al cliente ni la contratación o renovación de seguros.
+
+== Relaciones entre los elementos del dominio
+Una sucursal tiene varios empleados y varios vehículos, y cada vehículo está en una sola sucursal a la vez. Un proveedor realiza entregas, cada entrega llega a una sucursal y trae varios vehículos. Cada vehículo es de un modelo, y cada modelo pertenece a una marca.
+
+Una venta une a un cliente, un vendedor, un vehículo y una plataforma, y cada vehículo se vende una sola vez. Cada venta tiene su comisión y, si es a crédito, varias cuotas. Los services pertenecen a una venta y se hacen en un taller. El registro en el RUNA une a un vehículo con el cliente que lo compró.
 
 = Reglas de negocio
 + Al realizar una venta, el cliente debe ser mayor de 18 años.
@@ -156,7 +203,7 @@ La patente de `vehiculos` solo es clave candidata cuando está cargada, porque p
 Hay además dependencias que cruzan tablas, y por ellas separamos: `id_vehiculo → id_modelo → id_marca → origen`, `id_empleado → id_sucursal → direccion` e `id_venta → id_cliente → dni`.
 
 == Formas normales (1FN a 3FN)
-Para mostrar el proceso arrancamos de una sola relación sin normalizar, que sería como hoy anota la concesionaria las ventas (libreta y WhatsApp): todo junto en una fila.
+Para mostrar el proceso arrancamos de una sola relación sin normalizar, con los datos de cada venta juntos en una fila.
 
 ```
 VENTA(id_venta, fecha, cliente_dni, cliente_nombre, cliente_email,
