@@ -679,10 +679,237 @@ CREATE TABLE comisiones (
 )
 
 = Consultas SQL
-_Placeholder._
+Las consultas responden preguntas del día a día de la concesionaria: cuánto vendió cada sucursal y cada vendedor, qué clientes todavía deben cuotas, a quiénes les queda service gratuito y qué stock hay disponible. Cuando una función o una vista ya resuelve parte del problema, se usa en lugar de repetir la lógica, y los montos se muestran en pesos con `fn_formatear_monto`. Entre todas aparecen `WHERE`, `ORDER BY`, `JOIN`, `GROUP BY`, `HAVING`, `MAX`, `MIN` y consultas sobre varias tablas.
+
+== Ventas del período
+Lista las ventas de un período con el cliente, el vendedor, el modelo, el precio y la comisión de cada una. En vez de repetir los `JOIN` entre `ventas`, `clientes`, `vehiculos`, `modelos` y `marcas`, llama a `fn_ventas_vendedor` una vez por vendedor con `CROSS APPLY`. Las fechas del período están en dos variables, y el resultado sale de la venta más reciente a la más antigua.
+
+```sql
+DECLARE @desde DATE = '2025-01-01';
+DECLARE @hasta DATE = CAST(GETDATE() AS DATE);
+
+SELECT f.id_venta, f.fecha,
+       f.cliente,
+       e.nombre_completo AS vendedor,
+       f.marca, f.modelo,
+       dbo.fn_formatear_monto(f.precio) AS precio_venta,
+       dbo.fn_formatear_monto(f.comision) AS comision
+FROM empleados e
+CROSS APPLY dbo.fn_ventas_vendedor(e.id, @desde, @hasta) f
+WHERE e.tipo = 'vendedor'
+ORDER BY f.fecha DESC, f.id_venta DESC;
+```
+
+== Ventas por sucursal
+Cuenta las ventas y suma lo vendido en cada sucursal, de mayor a menor facturación. Cruza `ventas`, `vehiculos` y `sucursales`, y agrupa con `GROUP BY`. La sucursal que se toma es la del vehículo vendido.
+
+```sql
+SELECT s.nombre AS sucursal,
+       COUNT(v.id) AS cantidad_ventas,
+       dbo.fn_formatear_monto(SUM(v.precio)) AS total_vendido
+FROM ventas v
+JOIN vehiculos vh ON vh.id = v.id_vehiculo
+JOIN sucursales s ON s.id = vh.id_sucursal
+GROUP BY s.id, s.nombre
+ORDER BY SUM(v.precio) DESC;
+```
+
+== Vendedores con al menos dos ventas
+Muestra cuántas ventas hizo cada vendedor y cuánto facturó, solo para quienes tienen dos o más. Ese filtro va en un `HAVING` porque depende del resultado de `COUNT`, no de cada fila. El `WHERE` deja afuera a los empleados que no son vendedores.
+
+```sql
+SELECT e.nombre_completo AS vendedor,
+       COUNT(v.id) AS cantidad_ventas,
+       dbo.fn_formatear_monto(SUM(v.precio)) AS total_vendido
+FROM empleados e
+JOIN ventas v ON v.id_vendedor = e.id
+WHERE e.tipo = 'vendedor'
+GROUP BY e.id, e.nombre_completo
+HAVING COUNT(v.id) >= 2
+ORDER BY SUM(v.precio) DESC;
+```
+
+== Precio mayor y menor
+Obtiene el precio de lista más alto y el más bajo de todos los modelos con `MAX` y `MIN`.
+
+```sql
+SELECT dbo.fn_formatear_monto(MAX(precio)) AS precio_maximo,
+       dbo.fn_formatear_monto(MIN(precio)) AS precio_minimo
+FROM modelos;
+```
+
+== Ventas por medio de pago
+Agrupa las ventas por medio de pago, con la cantidad y el total de cada uno, empezando por el más usado.
+
+```sql
+SELECT medio_pago,
+       COUNT(*) AS cantidad_ventas,
+       dbo.fn_formatear_monto(SUM(precio)) AS total_vendido
+FROM ventas
+GROUP BY medio_pago
+ORDER BY COUNT(*) DESC, medio_pago;
+```
+
+== Comisión por vendedor
+Suma la comisión de cada vendedor en el período. Reutiliza `fn_ventas_vendedor`, que ya trae la comisión de cada venta, y las variables de la primera consulta.
+
+```sql
+SELECT e.nombre_completo AS vendedor,
+       COUNT(f.id_venta) AS cantidad_ventas,
+       dbo.fn_formatear_monto(SUM(f.comision)) AS comision_total
+FROM empleados e
+CROSS APPLY dbo.fn_ventas_vendedor(e.id, @desde, @hasta) f
+WHERE e.tipo = 'vendedor'
+GROUP BY e.id, e.nombre_completo
+ORDER BY SUM(f.comision) DESC;
+```
+
+== Ventas a crédito con saldo
+Muestra las ventas a crédito que todavía tienen cuotas sin pagar, con el precio de la venta y lo que falta, ordenadas por saldo. El saldo sale de `fn_saldo_pendiente`, que se usa en el `SELECT`, en el `WHERE` y en el `ORDER BY`.
+
+```sql
+SELECT v.id AS id_venta,
+       c.nombre_completo AS cliente,
+       mo.modelo,
+       dbo.fn_formatear_monto(v.precio) AS precio_venta,
+       dbo.fn_formatear_monto(dbo.fn_saldo_pendiente(v.id)) AS saldo_pendiente
+FROM ventas v
+JOIN clientes c ON c.id = v.id_cliente
+JOIN vehiculos vh ON vh.id = v.id_vehiculo
+JOIN modelos mo ON mo.id = vh.id_modelo
+WHERE v.medio_pago = 'credito'
+  AND dbo.fn_saldo_pendiente(v.id) > 0
+ORDER BY dbo.fn_saldo_pendiente(v.id) DESC;
+```
+
+== Service gratuito vigente
+Muestra las ventas cuyo service gratuito sigue vigente hoy y hasta qué fecha se puede usar. La vigencia la decide `fn_service_vigente`, y la fecha límite se calcula sumando `meses_service` a la fecha de venta.
+
+```sql
+SELECT v.id AS id_venta,
+       c.nombre_completo AS cliente,
+       vh.patente, mo.modelo,
+       DATEADD(MONTH, v.meses_service, v.fecha) AS service_hasta
+FROM ventas v
+JOIN clientes c ON c.id = v.id_cliente
+JOIN vehiculos vh ON vh.id = v.id_vehiculo
+JOIN modelos mo ON mo.id = vh.id_modelo
+WHERE dbo.fn_service_vigente(v.id, CAST(GETDATE() AS DATE)) = 1
+ORDER BY service_hasta;
+```
+
+== Stock por sucursal y marca
+Cuenta los vehículos disponibles y suma su valor de lista por sucursal y marca. Parte de `vw_stock_disponible`, que ya resuelve el cruce con modelos, marcas, sucursales y entregas, así que acá solo falta agrupar.
+
+```sql
+SELECT sucursal, marca,
+       COUNT(*) AS unidades,
+       dbo.fn_formatear_monto(SUM(precio_lista)) AS valor_stock
+FROM vw_stock_disponible
+GROUP BY sucursal, marca
+ORDER BY sucursal, COUNT(*) DESC;
+```
+
+== Precios por marca
+Calcula el precio de lista mayor y menor de cada marca y cuántos modelos tiene. Usa `vw_catalogo_modelos`, que ya une modelos con marcas.
+
+```sql
+SELECT marca,
+       COUNT(*) AS cantidad_modelos,
+       dbo.fn_formatear_monto(MAX(precio_lista)) AS precio_maximo,
+       dbo.fn_formatear_monto(MIN(precio_lista)) AS precio_minimo
+FROM vw_catalogo_modelos
+GROUP BY marca
+ORDER BY marca;
+```
 
 = Subconsultas
-_Placeholder: qué información se obtiene, qué función cumple la subconsulta y por qué es adecuada._
+Estas consultas dependen del resultado de otra: comparan contra un promedio que se calcula en el momento o filtran según lo que existe, o no, en otra tabla. En cada una se explica qué información se obtiene, qué función cumple la subconsulta y por qué es adecuada.
+
+== Modelos más caros que el promedio
+Obtiene los modelos cuyo precio de lista supera el promedio de todos. La subconsulta calcula ese promedio y la consulta externa lo usa como umbral en el `WHERE`. Es adecuada porque el promedio cambia cuando se actualizan los precios, y así no hay que escribir un valor fijo.
+
+```sql
+SELECT ma.nombre AS marca, mo.modelo,
+       dbo.fn_formatear_monto(mo.precio) AS precio_lista
+FROM modelos mo
+JOIN marcas ma ON ma.id = mo.id_marca
+WHERE mo.precio > (
+       SELECT AVG(CAST(precio AS DECIMAL(19,2)))
+       FROM modelos
+)
+ORDER BY mo.precio DESC;
+```
+
+== Clientes con más de una venta
+Busca los clientes que compraron más de una vez. La subconsulta agrupa `ventas` por cliente y devuelve los que aparecen más de una vez, y la consulta externa trae sus datos con `IN`. Así la externa no necesita agrupar y muestra cada cliente una sola vez.
+
+```sql
+SELECT c.id, c.nombre_completo, c.email
+FROM clientes c
+WHERE c.id IN (
+       SELECT v.id_cliente
+       FROM ventas v
+       GROUP BY v.id_cliente
+       HAVING COUNT(*) > 1
+)
+ORDER BY c.nombre_completo;
+```
+
+== Vendedores sobre el promedio
+Muestra los vendedores que vendieron más que el promedio de ventas por vendedor. La subconsulta interna cuenta las ventas de cada vendedor y la de afuera promedia esos conteos, que se compara con el de cada uno en el `HAVING`. Hace falta anidarlas porque SQL Server no permite aplicar `AVG` directamente sobre un `COUNT`.
+
+```sql
+SELECT e.nombre_completo AS vendedor,
+       COUNT(v.id) AS cantidad_ventas
+FROM empleados e
+JOIN ventas v ON v.id_vendedor = e.id
+WHERE e.tipo = 'vendedor'
+GROUP BY e.id, e.nombre_completo
+HAVING COUNT(v.id) > (
+       SELECT AVG(CAST(x.cantidad AS DECIMAL(10,2)))
+       FROM (
+              SELECT COUNT(*) AS cantidad
+              FROM ventas
+              GROUP BY id_vendedor
+       ) x
+)
+ORDER BY cantidad_ventas DESC;
+```
+
+== Ventas sin registro RUNA
+Detecta las ventas cuyo vehículo todavía no tiene registro en el RUNA. `NOT EXISTS` busca en `registro_runa` el vehículo de cada venta y deja pasar solo las que no lo encuentran. Es adecuada porque solo importa saber si existe un registro, no traer sus datos, y `NOT EXISTS` no se confunde con valores nulos.
+
+```sql
+SELECT v.id AS id_venta, v.fecha,
+       c.nombre_completo AS cliente,
+       vh.chasis, vh.patente
+FROM ventas v
+JOIN clientes c ON c.id = v.id_cliente
+JOIN vehiculos vh ON vh.id = v.id_vehiculo
+WHERE NOT EXISTS (
+       SELECT 1
+       FROM registro_runa r
+       WHERE r.id_vehiculo = v.id_vehiculo
+)
+ORDER BY v.fecha, v.id;
+```
+
+== Modelos nunca vendidos
+Lista los modelos de los que no se vendió ningún vehículo. La subconsulta devuelve los modelos de los vehículos que figuran en alguna venta, y la consulta externa se queda con los que no están en ese conjunto usando `NOT IN`. Es útil para ver qué modelos no se mueven.
+
+```sql
+SELECT ma.nombre AS marca, mo.modelo,
+       dbo.fn_formatear_monto(mo.precio) AS precio_lista
+FROM modelos mo
+JOIN marcas ma ON ma.id = mo.id_marca
+WHERE mo.id NOT IN (
+       SELECT vh.id_modelo
+       FROM ventas v
+       JOIN vehiculos vh ON vh.id = v.id_vehiculo
+)
+ORDER BY ma.nombre, mo.modelo;
+```
 
 = Vistas
 Las vistas son consultas almacenadas que funcionan como tablas virtuales: no guardan datos propios, sino que muestran el resultado actualizado de un SELECT sobre una o más tablas. Se utilizan para consultar de forma simple información que requeriría varios JOIN y para exponer solo los datos necesarios. Son de solo lectura; las operaciones que modifican datos o validan reglas de negocio se resuelven con procedimientos almacenados y triggers.
