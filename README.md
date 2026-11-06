@@ -93,10 +93,10 @@ para tratarlas.
 ### Seguridad
 Analizar y documentar el estado de la seguridad de la base de datos:
 
-- [ ] Usuarios
-- [ ] Roles
-- [ ] Permisos
-- [ ] Acceso a la informacion
-- [ ] Operaciones permitidas
-- [ ] Restricciones de acceso
-- [ ] Proteccion de informacion sensible
+- [x] Usuarios
+- [x] Roles
+- [x] Permisos
+- [x] Acceso a la informacion
+- [x] Operaciones permitidas
+- [x] Restricciones de acceso
+- [x] Proteccion de informacion sensible
