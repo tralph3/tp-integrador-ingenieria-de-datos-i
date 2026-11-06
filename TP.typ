@@ -1094,6 +1094,55 @@ BEGIN
 END;
 ```
 
+== `sp_registrar_cliente`
+Da de alta un cliente. Recibe el nombre, el DNI, la fecha de nacimiento, el email y, de forma opcional, el teléfono, y devuelve el id nuevo en un parámetro de salida. Antes de insertar quita los espacios sobrantes de los textos y deja el teléfono en `NULL` si llegó vacío.
+
+Valida a mano solo lo que las constraints no pueden expresar: que el nombre, el DNI y el email no estén vacíos (error 51501, y un valor `NULL` cuenta como vacío) y que el email tenga un formato razonable, con algo antes y después de la arroba y un punto en el dominio (51502). Un DNI o un email repetidos los frena el `UNIQUE` de `clientes`, y una fecha de nacimiento futura el `CHECK`. La edad tampoco se valida acá: un menor se puede registrar, y la regla de los 18 años se controla al vender, en `sp_registrar_venta` y en el trigger de `ventas`. Es un solo `INSERT`, así que no necesita transacción.
+
+```sql
+CREATE OR ALTER PROCEDURE sp_registrar_cliente
+       @nombre_completo VARCHAR(255),
+       @dni VARCHAR(20),
+       @fecha_nacimiento DATE,
+       @email VARCHAR(50),
+       @telefono VARCHAR(30) = NULL,
+       @id_cliente INT OUTPUT
+AS
+BEGIN
+       SET NOCOUNT ON;
+       BEGIN TRY
+              SET @nombre_completo = LTRIM(RTRIM(@nombre_completo));
+              SET @dni = LTRIM(RTRIM(@dni));
+              SET @email = LTRIM(RTRIM(@email));
+              SET @telefono = NULLIF(LTRIM(RTRIM(@telefono)), '');
+
+              -- Un parametro NULL tambien cuenta como vacio.
+              IF ISNULL(@nombre_completo, '') = '' OR ISNULL(@dni, '') = '' OR ISNULL(@email, '') = ''
+                     THROW 51501, 'El nombre, el DNI y el email no pueden estar vacios.', 1;
+
+              IF @email NOT LIKE '%_@_%._%' OR @email LIKE '% %'
+                     THROW 51502, 'El email no tiene un formato valido.', 1;
+
+              INSERT INTO clientes (nombre_completo, dni, fecha_nacimiento, email, telefono)
+              VALUES (@nombre_completo, @dni, @fecha_nacimiento, @email, @telefono);
+              SET @id_cliente = SCOPE_IDENTITY();
+       END TRY
+       BEGIN CATCH
+              IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+              EXEC sp_log_error 'sp_registrar_cliente';
+              THROW;
+       END CATCH
+END;
+```
+
+*Ejemplo*
+```sql
+DECLARE @id_cliente INT;
+EXEC sp_registrar_cliente @nombre_completo = 'Valeria Nunez', @dni = '36418592',
+     @fecha_nacimiento = '1992-07-14', @email = 'valeria.nunez@mail.com',
+     @telefono = '11-4837-6195', @id_cliente = @id_cliente OUTPUT;
+```
+
 == `sp_registrar_venta`
 Registra la venta de un vehículo, que es el proceso central de la concesionaria. Recibe el cliente, el vendedor, el vehículo, la plataforma, el precio en centavos, el medio de pago, la patente con la que sale el auto y, si se quiere, los meses de service (por defecto 6) y la fecha de la venta (por defecto hoy). Devuelve el id de la venta en `@id_venta`.
 
@@ -1721,6 +1770,8 @@ Los procedimientos se ocupan del resto. Revisan los parámetros, como una cantid
     [51302], [`sp_aumentar_precios_marca`], [Marca inexistente.],
     [51401], [`sp_liquidar_comisiones`], [Comisión ya liquidada.],
     [51402], [`sp_liquidar_comisiones`], [Venta a crédito con cuotas sin pagar.],
+    [51501], [`sp_registrar_cliente`], [Nombre, DNI o email vacíos.],
+    [51502], [`sp_registrar_cliente`], [Email con formato inválido.],
   )
 }
 

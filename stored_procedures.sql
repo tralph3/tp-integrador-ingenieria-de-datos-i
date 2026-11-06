@@ -31,19 +31,16 @@ BEGIN
               SET @email = LTRIM(RTRIM(@email));
               SET @telefono = NULLIF(LTRIM(RTRIM(@telefono)), '');
 
-              IF @nombre_completo = '' OR @dni = '' OR @email = ''
+              -- Un parametro NULL tambien cuenta como vacio.
+              IF ISNULL(@nombre_completo, '') = '' OR ISNULL(@dni, '') = '' OR ISNULL(@email, '') = ''
                      THROW 51501, 'El nombre, el DNI y el email no pueden estar vacios.', 1;
 
               IF @email NOT LIKE '%_@_%._%' OR @email LIKE '% %'
                      THROW 51502, 'El email no tiene un formato valido.', 1;
 
-              BEGIN TRANSACTION;
-
               INSERT INTO clientes (nombre_completo, dni, fecha_nacimiento, email, telefono)
               VALUES (@nombre_completo, @dni, @fecha_nacimiento, @email, @telefono);
               SET @id_cliente = SCOPE_IDENTITY();
-
-              COMMIT TRANSACTION;
        END TRY
        BEGIN CATCH
               IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
