@@ -1739,7 +1739,9 @@ ORDER BY id;
 Cada tipo de empleado que usa la base tiene un rol, y los usuarios no reciben permisos sueltos: los heredan del rol al que pertenecen. Casi nadie toca las tablas directamente. Se consulta a través de vistas y se opera a través de procedimientos, y eso funciona porque todos los objetos pertenecen al esquema `dbo`. Cuando un procedimiento usa una tabla del mismo dueño, SQL Server no revisa los permisos de quien lo ejecuta sobre esa tabla (encadenamiento de propiedad). Por eso un vendedor puede registrar una venta con `sp_registrar_venta` sin tener permiso de `INSERT` sobre `ventas`.
 
 == Usuarios
-Hay cinco usuarios, uno por rol: `usr_vendedor`, `usr_contador`, `usr_gerente`, `usr_marketing` y `usr_admin`. Son usuarios de ejemplo. En una puesta en marcha habría uno por persona, que se agregaría al rol correspondiente con `ALTER ROLE`. Los empleados de tipo `limpieza` no tienen usuario porque no usan la base.
+Hay cinco usuarios de ejemplo, uno por rol. En una puesta en marcha habría uno por persona, agregado al rol correspondiente con `ALTER ROLE`. Los empleados de tipo `limpieza` no tienen usuario porque no usan la base.
+
+Los usuarios se crean sin login (`WITHOUT LOGIN`). Así el script se puede ejecutar sin permisos de servidor, y cada usuario se prueba con `EXECUTE AS USER`. En un servidor real cada uno se asociaría a un login de SQL Server, con política de contraseñas y vencimiento, y las columnas `usuario` de `log_errores` e `historial_precios` guardarían quién hizo cada cosa.
 
 #{
   set text(size: 9pt)
@@ -1757,68 +1759,39 @@ Hay cinco usuarios, uno por rol: `usr_vendedor`, `usr_contador`, `usr_gerente`, 
   )
 }
 
-Cada usuario tiene su propio login de SQL Server, con política de contraseñas y vencimiento activados. La contraseña inicial es temporal y el motor obliga a cambiarla en el primer ingreso. Tener un login por usuario también sirve para saber quién hizo cada cosa: las columnas `usuario` de `log_errores` y `historial_precios` toman el valor de `SUSER_SNAME()`.
-
 ```sql
-IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_vendedor')
-       CREATE LOGIN usr_vendedor
-       WITH PASSWORD = 'Cambiar1#Alfa26' MUST_CHANGE,
-            CHECK_EXPIRATION = ON, CHECK_POLICY = ON;
-
-IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_contador')
-       CREATE LOGIN usr_contador
-       WITH PASSWORD = 'Cambiar2#Beta26' MUST_CHANGE,
-            CHECK_EXPIRATION = ON, CHECK_POLICY = ON;
-
-IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_gerente')
-       CREATE LOGIN usr_gerente
-       WITH PASSWORD = 'Cambiar3#Gama26' MUST_CHANGE,
-            CHECK_EXPIRATION = ON, CHECK_POLICY = ON;
-
-IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_marketing')
-       CREATE LOGIN usr_marketing
-       WITH PASSWORD = 'Cambiar4#Delta26' MUST_CHANGE,
-            CHECK_EXPIRATION = ON, CHECK_POLICY = ON;
-
-IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = 'usr_admin')
-       CREATE LOGIN usr_admin
-       WITH PASSWORD = 'Cambiar5#Sigma26' MUST_CHANGE,
-            CHECK_EXPIRATION = ON, CHECK_POLICY = ON;
-
-IF DATABASE_PRINCIPAL_ID('usr_vendedor') IS NULL
-       CREATE USER usr_vendedor FOR LOGIN usr_vendedor;
-
-IF DATABASE_PRINCIPAL_ID('usr_contador') IS NULL
-       CREATE USER usr_contador FOR LOGIN usr_contador;
-
-IF DATABASE_PRINCIPAL_ID('usr_gerente') IS NULL
-       CREATE USER usr_gerente FOR LOGIN usr_gerente;
-
-IF DATABASE_PRINCIPAL_ID('usr_marketing') IS NULL
-       CREATE USER usr_marketing FOR LOGIN usr_marketing;
-
-IF DATABASE_PRINCIPAL_ID('usr_admin') IS NULL
-       CREATE USER usr_admin FOR LOGIN usr_admin;
+IF DATABASE_PRINCIPAL_ID('usr_vendedor') IS NULL CREATE USER usr_vendedor WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID('usr_contador') IS NULL CREATE USER usr_contador WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID('usr_gerente') IS NULL CREATE USER usr_gerente WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID('usr_marketing') IS NULL CREATE USER usr_marketing WITHOUT LOGIN;
+IF DATABASE_PRINCIPAL_ID('usr_admin') IS NULL CREATE USER usr_admin WITHOUT LOGIN;
 ```
 
 == Roles
-Se crearon cinco roles. `rol_vendedor` atiende al cliente y cierra la venta. `rol_contador` se ocupa de los cobros y las comisiones. `rol_gerente` supervisa el negocio y carga lo que llega a las sucursales. `rol_marketing` solo necesita conocer el catálogo de modelos. `rol_administrador` mantiene la base: es miembro de `db_owner`, así que puede todo, y no se usa para el trabajo diario.
+Cada rol agrupa lo que necesita un tipo de empleado. El administrador es miembro de `db_owner`, así que puede todo, y por eso no se usa para el trabajo diario.
+
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Rol*][*Qué hace*],
+    [`rol_vendedor`], [Atiende al cliente y cierra la venta.],
+    [`rol_contador`], [Se ocupa de los cobros y las comisiones.],
+    [`rol_gerente`], [Supervisa el negocio y carga lo que llega a las sucursales.],
+    [`rol_marketing`], [Solo necesita conocer el catálogo de modelos.],
+    [`rol_administrador`], [Mantiene la base.],
+  )
+}
 
 ```sql
-IF DATABASE_PRINCIPAL_ID('rol_vendedor') IS NULL
-       CREATE ROLE rol_vendedor;
-
-IF DATABASE_PRINCIPAL_ID('rol_contador') IS NULL
-       CREATE ROLE rol_contador;
-
-IF DATABASE_PRINCIPAL_ID('rol_gerente') IS NULL
-       CREATE ROLE rol_gerente;
-
-IF DATABASE_PRINCIPAL_ID('rol_marketing') IS NULL
-       CREATE ROLE rol_marketing;
-
-IF DATABASE_PRINCIPAL_ID('rol_administrador') IS NULL
-       CREATE ROLE rol_administrador;
+IF DATABASE_PRINCIPAL_ID('rol_vendedor') IS NULL CREATE ROLE rol_vendedor;
+IF DATABASE_PRINCIPAL_ID('rol_contador') IS NULL CREATE ROLE rol_contador;
+IF DATABASE_PRINCIPAL_ID('rol_gerente') IS NULL CREATE ROLE rol_gerente;
+IF DATABASE_PRINCIPAL_ID('rol_marketing') IS NULL CREATE ROLE rol_marketing;
+IF DATABASE_PRINCIPAL_ID('rol_administrador') IS NULL CREATE ROLE rol_administrador;
 
 ALTER ROLE rol_vendedor ADD MEMBER usr_vendedor;
 ALTER ROLE rol_contador ADD MEMBER usr_contador;
@@ -1829,26 +1802,33 @@ ALTER ROLE db_owner ADD MEMBER rol_administrador;
 ```
 
 == Permisos
-Los permisos se dan con `GRANT` a los roles, nunca a los usuarios, y lo que no se otorga queda prohibido. La tabla muestra lo que recibe cada rol, salvo el administrador, que lo tiene todo por `db_owner`.
+Los permisos se dan con `GRANT` a los roles, nunca a los usuarios, y lo que no se otorga queda prohibido. La tabla resume lo que recibe cada rol. El administrador no figura porque lo tiene todo por `db_owner`.
 
 #{
   set text(size: 9pt)
   set par(justify: false)
   table(
-    columns: (auto, 1fr, 1.1fr),
+    columns: (auto, 1.3fr, 1.2fr, 1fr),
     stroke: 0.5pt + luma(150),
     inset: 5pt,
-    table.header[*Rol*][*Consulta*][*Ejecuta*],
-    [`rol_vendedor`], [`vw_stock_disponible`, `vw_catalogo_modelos` y las columnas `id`, `nombre_completo`, `dni`, `email` y `telefono` de `clientes`], [`sp_registrar_cliente`, `sp_registrar_venta`, `sp_generar_cuotas` y `fn_formatear_monto`],
-    [`rol_contador`], [`vw_cuotas_pendientes`, `fn_ventas_vendedor`, `cuotas`, `comisiones`, `ventas` y `empleados`], [`sp_liquidar_comisiones`, `fn_saldo_pendiente`, `fn_comision` y `fn_formatear_monto`],
-    [`rol_gerente`], [Todo el esquema `dbo`], [`sp_actualizar_precio_modelo`, `sp_aumentar_precios_marca` y las cuatro funciones escalares],
-    [`rol_marketing`], [`vw_catalogo_modelos`], [Nada],
+    table.header[*Rol*][*Consulta*][*Ejecuta*][*Modifica directamente*],
+    [`rol_vendedor`],
+      [`vw_stock_disponible`, `vw_catalogo_modelos` y las columnas `id`, `nombre_completo`, `dni`, `email` y `telefono` de `clientes`],
+      [`sp_registrar_cliente`, `sp_registrar_venta`, `sp_generar_cuotas` y `fn_formatear_monto`],
+      [Nada.],
+    [`rol_contador`],
+      [`vw_cuotas_pendientes`, `fn_ventas_vendedor`, `cuotas`, `comisiones`, `ventas` y `empleados`],
+      [`sp_liquidar_comisiones`, `fn_saldo_pendiente`, `fn_comision` y `fn_formatear_monto`],
+      [La columna `fecha_pago` de `cuotas`.],
+    [`rol_gerente`],
+      [Todo el esquema `dbo`],
+      [`sp_actualizar_precio_modelo`, `sp_aumentar_precios_marca` y las cuatro funciones escalares],
+      [`INSERT` en `entregas`, `vehiculos`, `service` y `registro_runa`.],
+    [`rol_marketing`], [`vw_catalogo_modelos`], [Nada.], [Nada.],
   )
 }
 
-Hay dos permisos de escritura directa. El contador puede actualizar solo la columna `fecha_pago` de `cuotas`, que es como registra un cobro, sin poder tocar montos ni vencimientos. El gerente puede hacer `INSERT` en `entregas`, `vehiculos`, `service` y `registro_runa`, tablas que no tienen procedimiento y que ya se protegen con sus constraints y con los triggers `trg_service_vigencia` y `trg_registro_runa_cliente`.
-
-El vendedor no recibe la columna `fecha_nacimiento` de `clientes`. No la necesita, porque la edad la valida `sp_registrar_venta` por dentro.
+Las escrituras directas existen porque no hay procedimiento que las cubra. El contador solo puede actualizar `fecha_pago`, que es como registra un cobro, sin poder tocar montos ni vencimientos. El gerente inserta en tablas que ya se protegen con sus constraints y con los triggers `trg_service_vigencia` y `trg_registro_runa_cliente`.
 
 ```sql
 GRANT SELECT ON vw_stock_disponible TO rol_vendedor;
@@ -1889,13 +1869,13 @@ GRANT SELECT ON vw_catalogo_modelos TO rol_marketing;
 ```
 
 == Acceso a la información
-El vendedor ve el stock disponible, el catálogo y los datos de contacto de los clientes, enmascarados. No ve ventas, comisiones ni sueldos. El contador ve las cuotas, las ventas, las comisiones y los sueldos, y los datos de contacto completos de los clientes con cuotas pendientes, que necesita para cobrar. No ve el stock ni el historial de precios. El gerente ve toda la base, incluidos `log_errores` e `historial_precios`. Marketing ve solo marca, origen, modelo, fecha de lanzamiento y precio de lista, sin ningún dato de clientes ni de ventas. El administrador ve todo.
+Cada rol ve solo lo que necesita. El vendedor no ve ventas, comisiones ni sueldos, y los datos de contacto de los clientes los ve enmascarados. El contador ve cuotas, ventas, comisiones y sueldos, y los datos de contacto completos de quienes tienen cuotas pendientes, que necesita para cobrar, pero no el stock ni el historial de precios. El gerente ve toda la base, incluidos `log_errores` e `historial_precios`. Marketing ve marca, origen, modelo, fecha de lanzamiento y precio de lista, sin datos de clientes ni de ventas.
 
 == Operaciones permitidas
-El vendedor da de alta clientes, registra ventas y genera las cuotas de las ventas a crédito. El contador marca cuotas como pagas y liquida comisiones. El gerente cambia precios, de un modelo o de toda una marca, y carga entregas, vehículos, services y registros del RUNA. Marketing no modifica nada. El resto lo hace el administrador: el alta y la baja de empleados, el mantenimiento de marcas, modelos, proveedores, talleres, sucursales y plataformas, y los cambios de estado de un vehículo que no son una venta, como una reserva o el ingreso a service, porque no tienen procedimiento.
+El vendedor da de alta clientes, registra ventas y genera las cuotas de las ventas a crédito. El contador marca cuotas como pagas y liquida comisiones. El gerente cambia precios, de un modelo o de toda una marca, y carga entregas, vehículos, services y registros del RUNA. Marketing no modifica nada. Lo demás lo hace el administrador: el alta y la baja de empleados, el mantenimiento de marcas, modelos, proveedores, talleres, sucursales y plataformas, y los cambios de estado de un vehículo que no son una venta, como una reserva, porque no tienen procedimiento.
 
 == Restricciones de acceso
-Ningún rol puede borrar datos, salvo el administrador. Para que eso no dependa solo de que nunca se otorgue, los roles tienen un `DENY` explícito sobre el esquema `dbo` para las operaciones que no les corresponden. Los procedimientos y los triggers siguen escribiendo en las tablas por el encadenamiento de propiedad, que no revisa esos permisos.
+Ningún rol puede borrar datos, salvo el administrador. Para que eso no dependa de que nunca se otorgue, cada rol tiene un `DENY` explícito sobre el esquema `dbo` para las operaciones que no le corresponden. Los procedimientos y los triggers siguen escribiendo en las tablas por el encadenamiento de propiedad, que no revisa esos permisos.
 
 ```sql
 DENY INSERT, UPDATE, DELETE ON SCHEMA::dbo TO rol_vendedor;
@@ -1904,16 +1884,28 @@ DENY INSERT, DELETE ON SCHEMA::dbo TO rol_contador;
 DENY UPDATE, DELETE ON SCHEMA::dbo TO rol_gerente;
 ```
 
-`log_errores` e `historial_precios` solo los escriben `sp_log_error` y el trigger de `modelos`. Ningún rol tiene permiso para insertar ahí, así que nadie puede falsear ni borrar el registro de errores o de cambios de precio. Por la misma razón `sp_log_error` no se otorga a nadie: si un rol pudiera ejecutarla, podría llenar `log_errores` con errores inventados.
+`log_errores` e `historial_precios` solo los escriben `sp_log_error` y el trigger de `modelos`. Ningún rol puede insertar ahí, así que nadie puede falsear ni borrar el registro de errores o de cambios de precio. Por lo mismo, `sp_log_error` no se otorga a nadie: quien pudiera ejecutarla llenaría `log_errores` de errores inventados.
 
-`fn_ventas_vendedor` recibe cualquier id de vendedor y devuelve sus ventas, los clientes y las comisiones. Por eso la usan solo el contador y el gerente. Si la tuviera el vendedor, podría mirar las ventas de sus compañeros.
-
-Un `SELECT *` sobre `clientes` falla para el vendedor porque incluye `fecha_nacimiento`. Tiene que pedir las columnas que sí tiene.
+`fn_ventas_vendedor` devuelve las ventas, los clientes y las comisiones de cualquier vendedor que se le indique, así que solo la tienen el contador y el gerente. Si la tuviera el vendedor, podría mirar las ventas de sus compañeros. Además, un `SELECT *` sobre `clientes` falla para el vendedor porque incluye `fecha_nacimiento`; tiene que pedir las columnas que sí tiene.
 
 == Protección de información sensible
-Los datos sensibles son los personales de los clientes (`dni`, `email`, `telefono` y `fecha_nacimiento`) y el `sueldo` de los empleados.
+Los datos sensibles son los personales de los clientes (`dni`, `email`, `telefono` y `fecha_nacimiento`) y el `sueldo` de los empleados. El sueldo lo ven solo el contador, el gerente y el administrador, porque ningún otro rol tiene `SELECT` sobre `empleados`. La fecha de nacimiento no se otorga al vendedor. El DNI, el email y el teléfono sí los necesita para ubicar al cliente, pero no completos, así que se enmascaran con Dynamic Data Masking.
 
-El sueldo lo ven solo el contador, el gerente y el administrador, porque ningún otro rol tiene `SELECT` sobre `empleados`. La fecha de nacimiento no se otorga al vendedor. El DNI, el email y el teléfono sí los necesita para ubicar al cliente, pero no completos, así que se enmascaran con Dynamic Data Masking. Quien no tiene el permiso `UNMASK` ve el DNI con sus últimos tres dígitos, el email con su primera letra y el teléfono con sus últimos cuatro dígitos. El contador y el gerente tienen `UNMASK`: el contador lo necesita para contactar a quienes tienen cuotas vencidas, y el gerente ve toda la base.
+#{
+  set text(size: 9pt)
+  set par(justify: false)
+  table(
+    columns: (auto, 1fr),
+    stroke: 0.5pt + luma(150),
+    inset: 5pt,
+    table.header[*Columna*][*Lo que ve quien no tiene `UNMASK`*],
+    [`dni`], [`xxxx` seguido de los últimos tres dígitos.],
+    [`email`], [La primera letra y un dominio genérico, como `aXXX@XXXX.com`.],
+    [`telefono`], [`xx-xxxx-` seguido de los últimos cuatro dígitos.],
+  )
+}
+
+Tienen `UNMASK` el contador, que contacta a quienes tienen cuotas vencidas, y el gerente, que ve toda la base.
 
 ```sql
 ALTER TABLE clientes ALTER COLUMN dni ADD MASKED WITH (FUNCTION = 'partial(0, "xxxx", 3)');
@@ -1921,7 +1913,7 @@ ALTER TABLE clientes ALTER COLUMN email ADD MASKED WITH (FUNCTION = 'email()');
 ALTER TABLE clientes ALTER COLUMN telefono ADD MASKED WITH (FUNCTION = 'partial(0, "xx-xxxx-", 4)');
 ```
 
-El enmascarado no es un control fuerte. Un usuario puede ir probando valores en un `WHERE` y deducir el dato completo. Por eso se usa junto con los permisos por columna y no en lugar de ellos.
+El enmascarado no es un control fuerte: un usuario puede ir probando valores en un `WHERE` y deducir el dato completo. Por eso se usa junto con los permisos por columna y no en lugar de ellos.
 
 *Ejemplo*
 ```sql
