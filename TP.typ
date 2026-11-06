@@ -135,9 +135,28 @@ Una sucursal tiene varios empleados y varios vehículos, y cada vehículo está 
 Una venta une a un cliente, un vendedor, un vehículo y una plataforma, y cada vehículo se vende una sola vez. Cada venta tiene su comisión y, si es a crédito, varias cuotas. Los services pertenecen a una venta y se hacen en un taller. El registro en el RUNA une a un vehículo con el cliente que lo compró.
 
 = Reglas de negocio
-+ Al realizar una venta, el cliente debe ser mayor de 18 años.
-+ Todas las ventas deben estar registradas a un vendedor.
-+ El vehículo debe registrarse a nombre del cliente en el RUNA.
+Estas son las reglas que la base hace cumplir, según el caso con restricciones de las tablas, con triggers o con procedimientos.
+
+== Ventas
+- El cliente debe ser mayor de 18 años a la fecha de la venta.
+- Toda venta la registra un vendedor, que tiene que ser un empleado de tipo vendedor y estar activo.
+- Solo se puede vender un vehículo disponible. Al venderse pasa a vendido y queda con la patente con la que se entrega, y no puede venderse otra vez.
+- El medio de pago puede ser efectivo, transferencia, débito o crédito.
+
+== Cuotas y comisiones
+- Solo las ventas a crédito tienen cuotas. Son mensuales y suman el precio de la venta.
+- Cada venta genera una comisión para el vendedor, equivalente al 2% del precio.
+- Una comisión se liquida una sola vez. Si la venta fue a crédito, solo se liquida cuando el cliente terminó de pagar todas las cuotas.
+
+== Registro y service
+- El vehículo vendido se registra en el RUNA a nombre del cliente que lo compró, y tiene un único registro.
+- Cada venta incluye un período de service gratuito, medido en meses desde la fecha de venta. Un service solo se puede registrar dentro de ese plazo.
+
+== Catálogo y datos
+- Cada cambio del precio de lista de un modelo queda guardado en un historial, con el precio anterior y el nuevo.
+- El DNI y el email de un cliente no pueden repetirse.
+- Los precios y los montos de las cuotas son siempre positivos, y la fecha de una venta o de un nacimiento no puede ser futura.
+- Los errores de los procedimientos quedan registrados con su fecha, su usuario y su mensaje.
 
 = Diagrama Entidad-Relación
 #figure(
