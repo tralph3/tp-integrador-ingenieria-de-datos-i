@@ -164,11 +164,10 @@ Estas son las reglas que la base hace cumplir, según el caso con restricciones 
 - Los precios y los montos de las cuotas son siempre positivos, y la fecha de una venta o de un nacimiento no puede ser futura.
 - Los errores de los procedimientos quedan registrados con su fecha, su usuario y su mensaje.
 
+#pagebreak()
 = Diagrama Entidad-Relación
 #figure(
-  rect(width: 100%, height: 6cm, stroke: (dash: "dashed"))[
-    #align(center + horizon)[_Insertar imagen del DER_]
-  ],
+  image("DER.png", width: 100%),
   caption: [Diagrama Entidad-Relación.],
 )
 
