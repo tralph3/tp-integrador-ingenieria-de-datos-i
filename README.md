@@ -23,18 +23,18 @@
 - [x] Relaciones entre tablas
 
 ### Consultas
-- [ ] SELECT
-- [ ] WHERE
-- [ ] ORDER BY
-- [ ] JOIN
-- [ ] GROUP BY
-- [ ] HAVING
-- [ ] Funciones de agregacion (MAX, MIN)
-- [ ] Consultas sobre multiples tablas
-- [ ] Condiciones sobre los resultados
+- [x] SELECT
+- [x] WHERE
+- [x] ORDER BY
+- [x] JOIN
+- [x] GROUP BY
+- [x] HAVING
+- [x] Funciones de agregacion (MAX, MIN)
+- [x] Consultas sobre multiples tablas
+- [x] Condiciones sobre los resultados
 
 ### Consultas con subconsultas
-- [ ] Realizar subconsultas con explicaciones indicando que
+- [x] Realizar subconsultas con explicaciones indicando que
       informacion se desea obtener, que funcion cumple y por que es
       adecuada para resolver la problematica.
 
